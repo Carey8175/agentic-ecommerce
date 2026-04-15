@@ -37,8 +37,17 @@
   - Resolved checkout `workflow_execution` 500 errors (manually ran missing DB migrations).
   - Fixed missing `product_shipping_profile` associations for imported items.
   - Set up a Global region with USD to support worldwide shipping.
+  - Updated storefront logic to automatically fall back to thumbnail image if image gallery is empty.
 
-### 6. Database Dump
+### 6. Admin & Redis Fixes
+- Identified that **missing Redis** was causing Medusa v2's async workflows and pub/sub to fail, resulting in Admin UI bugs ("Failed to fetch" race condition, "Unauthorized" session drops).
+- Downloaded and ran a native Windows `redis-server.exe` to restore core functionality.
+- Configured Medusa to properly use Redis for Caching, Events, Locking, and Workflows.
+- Deleted all hacky custom `POST` route overrides since Medusa's official logic is now 100% stable with Redis.
+- Fixed the Medusa watcher restarting on every image upload by renaming the `uploads` folder to `.uploads` so the `chokidar` watcher ignores it.
+- Fixed the Admin Inventory UI not auto-refreshing by implementing a custom React `MutationObserver` widget that watches for the "Inventory level updated successfully" toast and forces a page reload.
+
+### 7. Database Dump
 - `database_dump.sql` is committed to the repo root (3.8MB, 504 products, fully seeded).
 - To regenerate: `PGPASSWORD=yourpassword pg_dump -U postgres agentic_store > database_dump.sql`
 

@@ -118,14 +118,22 @@ export default async function ProductPage(props: Props) {
     notFound()
   }
 
-  const images = getImagesForVariant(pricedProduct, selectedVariantId)
+  let images = getImagesForVariant(pricedProduct, selectedVariantId) || []
+  
+  // Automatically include the thumbnail in the gallery if it exists and isn't already there
+  if (pricedProduct.thumbnail) {
+    const hasThumbnail = images.some((img) => img.url === pricedProduct.thumbnail)
+    if (!hasThumbnail) {
+      images = [{ id: "thumbnail", url: pricedProduct.thumbnail } as any, ...images]
+    }
+  }
 
   return (
     <ProductTemplate
       product={pricedProduct}
       region={region}
       countryCode={params.countryCode}
-      images={images || []}
+      images={images}
     />
   )
 }

@@ -7,14 +7,26 @@ const DEFAULT_CHIPS = [
   "Help me find a stylish shirt",
 ]
 
-export default function PromptChips({ onSelect, chips = DEFAULT_CHIPS }: { onSelect: (text: string) => void, chips?: string[] }) {
+type Props = {
+  onSelect: (text: string) => void
+  chips?: string[]
+  variant?: "dark" | "light"
+}
+
+export default function PromptChips({ onSelect, chips = DEFAULT_CHIPS, variant = "dark" }: Props) {
+  const isLight = variant === "light"
+
   return (
-    <div className="flex flex-wrap gap-2 w-full max-w-2xl mx-auto mt-4 px-4 justify-center">
+    <div className="flex flex-wrap gap-2 justify-start">
       {chips.map((chip, idx) => (
         <button
           key={idx}
           onClick={() => onSelect(chip)}
-          className="text-xs bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-full hover:bg-gray-50 hover:text-gray-900 transition-colors shadow-sm whitespace-nowrap"
+          className={`text-xs px-3.5 py-1.5 rounded-full transition-all whitespace-nowrap ${
+            isLight
+              ? "border border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50"
+              : "border border-white/20 text-white/60 hover:bg-white/10 hover:text-white hover:border-white/40"
+          }`}
         >
           {chip}
         </button>

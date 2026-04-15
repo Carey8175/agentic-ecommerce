@@ -15,7 +15,7 @@ Before cloning and setting up the project, ensure your local environment has the
    - Ensure the PostgreSQL service is actively running in the background.
 3. **Redis**: Required by Medusa v2 for workflow orchestrations and events.
    - Mac/Linux: `brew install redis` and `brew services start redis`
-   - Windows: Use [WSL (Windows Subsystem for Linux)](https://learn.microsoft.com/en-us/windows/wsl/install) to install Redis, or use Docker (`docker run -p 6379:6379 -d redis`).
+   - Windows: Since Docker and WSL aren't always available, you can download a native Windows port of Redis (e.g., `Redis-x64-5.0.14.1.zip`), extract it, and run `redis-server.exe` in the background.
 4. **pnpm**: We use `pnpm` for package management.
    - Install via npm: `npm install -g pnpm`
 5. **Git**: To clone the repository.
