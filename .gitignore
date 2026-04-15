@@ -59,6 +59,7 @@ mcp.json
 # Uploads (Exclude actual images, but maybe keep directory structure)
 agentic-store/uploads/*
 !agentic-store/uploads/.gitkeep
+agentic-store/.uploads/
 agentic-store-storefront/public/uploads/images/*
 !agentic-store-storefront/public/uploads/images/.gitkeep
 
@@ -68,6 +69,13 @@ agentic-store-storefront/public/uploads/images/*
 # Scratch / debug files
 out.html
 test.js
+debug-*.md
+
+# Local Redis binaries and dumps
+redis/
+*.zip
+dump.rdb
+appendonly.aof
 
 # Yarn (project uses pnpm — .yarnrc.yml and .yarn/ are not needed)
 .yarn/

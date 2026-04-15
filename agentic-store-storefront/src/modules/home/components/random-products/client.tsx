@@ -1,10 +1,8 @@
 "use client"
 
 import { ChevronLeft, ChevronRight } from "@medusajs/icons"
-import { IconButton } from "@medusajs/ui"
 import { useRef } from "react"
-
-import InteractiveLink from "@modules/common/components/interactive-link"
+import LocalizedClientLink from "@modules/common/components/localized-client-link"
 
 export default function RandomProductsClient({
   children,
@@ -15,38 +13,45 @@ export default function RandomProductsClient({
 
   const scroll = (direction: "left" | "right") => {
     if (scrollRef.current) {
-      // Calculate exactly one full viewport width to scroll by
       const containerWidth = scrollRef.current.clientWidth
-      const scrollAmount = direction === "left" ? -containerWidth : containerWidth
-      
       scrollRef.current.scrollBy({
-        left: scrollAmount,
+        left: direction === "left" ? -containerWidth : containerWidth,
         behavior: "smooth",
       })
     }
   }
 
   return (
-    <li className="content-container py-12 small:py-24 list-none border-t border-gray-100">
-      <div className="flex justify-between items-center mb-8">
-        <h2 className="text-3xl font-light tracking-tight text-gray-900">Recommended for You</h2>
-        <div className="flex items-center gap-x-4">
-          <div className="flex items-center gap-x-2 hidden small:flex">
-            <IconButton onClick={() => scroll("left")} variant="transparent">
-              <ChevronLeft />
-            </IconButton>
-            <IconButton onClick={() => scroll("right")} variant="transparent">
-              <ChevronRight />
-            </IconButton>
-          </div>
-          <InteractiveLink href="/store">
-            <span className="text-xs tracking-widest uppercase text-gray-500 hover:text-gray-900 transition-colors">View all</span>
-          </InteractiveLink>
+    <li className="content-container py-14 list-none">
+      <div className="flex justify-between items-end mb-8">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-indigo-500 mb-2">Curated for you</p>
+          <h2 className="text-3xl font-bold text-gray-900 tracking-tight">Recommended</h2>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => scroll("left")}
+            className="w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:border-gray-400 hover:text-gray-700 transition-colors hidden small:flex"
+          >
+            <ChevronLeft />
+          </button>
+          <button
+            onClick={() => scroll("right")}
+            className="w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:border-gray-400 hover:text-gray-700 transition-colors hidden small:flex"
+          >
+            <ChevronRight />
+          </button>
+          <LocalizedClientLink
+            href="/store"
+            className="text-xs font-semibold uppercase tracking-widest text-gray-400 hover:text-gray-900 transition-colors"
+          >
+            View all →
+          </LocalizedClientLink>
         </div>
       </div>
-      <div 
+      <div
         ref={scrollRef}
-        className="flex overflow-x-auto snap-x snap-mandatory gap-x-6 pb-6 no-scrollbar scroll-smooth"
+        className="flex overflow-x-auto snap-x snap-mandatory gap-5 pb-4 no-scrollbar scroll-smooth"
       >
         {children}
       </div>

@@ -11,7 +11,7 @@ export const GET = async (
     return res.status(404).send("Not found");
   }
 
-  const filePath = path.join(process.cwd(), "uploads", fileName);
+  const filePath = path.join(process.cwd(), ".uploads", fileName);
 
   if (fs.existsSync(filePath)) {
     return res.sendFile(filePath);
