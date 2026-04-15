@@ -1,0 +1,74 @@
+# Node / NPM / PNPM
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Environment Variables
+.env
+.env.*
+!.env.template
+!.env.example
+
+# Next.js
+.next/
+out/
+build/
+agentic-store-storefront/.next/
+agentic-store-storefront/out/
+agentic-store-storefront/build/
+
+# Medusa Build / Dist
+agentic-store/dist/
+agentic-store/.medusa/
+
+# Python (For seed scripts)
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Trae / AI Tools
+.claude/
+.trae/
+mcp.json
+
+# Uploads (Exclude actual images, but maybe keep directory structure)
+agentic-store/uploads/*
+!agentic-store/uploads/.gitkeep
+agentic-store-storefront/public/uploads/images/*
+!agentic-store-storefront/public/uploads/images/.gitkeep
+
+# Large Dataset files
+*.csv
+
+# Scratch / debug files
+out.html
+test.js
+
+# Yarn (project uses pnpm — .yarnrc.yml and .yarn/ are not needed)
+.yarn/
+.yarnrc.yml
