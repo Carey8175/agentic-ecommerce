@@ -86,25 +86,58 @@
 
 ### Storefront Bug Fixes & Code Quality (2026-04-20)
 - **Password update** (`profile-password/index.tsx`) — implemented using `sdk.auth.updateProvider`. Re-authenticates with old password first, then updates. Validates new password / confirm match client-side.
-- **Email update** (`profile-email/index.tsx`) — confirmed `StoreUpdateCustomer` API does not expose email changes. Field is now disabled with a clear user-facing message rather than silently succeeding.
+- **Email update** (`profile-email/index.tsx`) — confirmed `StoreUpdateCustomer` API does not expose email changes. Field is now a plain read-only display (no edit button, no form).
 - **Image typings** (`thumbnail/index.tsx`) — replaced `any[]` with `HttpTypes.StoreProductImage[]`.
-- **Cart inventory limit** (`cart/components/item/index.tsx`) — quantity dropdown now caps to real `item.variant?.inventory_quantity` instead of hardcoded `10`.
-- **Cart address parsing** (`cart.ts`) — replaced 20 hardcoded `formData.get()` calls with a typed `parseAddress()` helper and `HttpTypes.StoreUpdateCart` type. Same behaviour, type-safe.
+- **Cart inventory limit** (`cart/components/item/index.tsx`) — quantity selector replaced with `−`/`+` stepper buttons. Caps to real `item.variant?.inventory_quantity` when `manage_inventory` is true, falls back to 10.
+- **Cart address parsing** (`cart.ts`) — replaced 20 hardcoded `formData.get()` calls with a typed `parseAddress()` helper. Also fixed missing `await` on `getCartId()` in `setAddresses`.
+- **Checkout country select** (`native-select/index.tsx`, `country-select/index.tsx`) — fixed React uncontrolled→controlled console error by detecting `value` prop presence and spreading either `{ value }` or `{ defaultValue }` conditionally.
+- **Profile page** (`profile/page.tsx`) — `ProfilePassword` section was accidentally commented out; now visible.
+
+### Unit Tests Added (2026-04-20)
+Jest + React Testing Library test suite scaffolded at `agentic-store-storefront/src/__tests__/`:
+- `customer.test.ts` — 9 tests for customer data functions
+- `cart.test.ts` — 8 tests for cart functions including `setAddresses`
+- `ProfilePassword.test.tsx` — 5 tests
+- `ProfileEmail.test.tsx` — 6 tests (updated to match read-only implementation)
+- `Thumbnail.test.tsx` — 12 tests
+- `CartItem.test.tsx` — 15 tests (updated for +/- button implementation)
+
+### Password Change — Backend Custom Route (2026-04-20)
+- **Root cause:** The built-in `POST /auth/customer/emailpass/update` route is designed for the reset-password token flow (where `actor_id` = auth identity ID). A regular login token has `actor_id` = customer ID — different thing — causing a 500.
+- **Fix:** Added custom backend route `POST /store/customers/me/password` (`agentic-store/src/api/store/customers/me/password/route.ts`) that verifies the old password via `authService.authenticate`, then uses the auth identity ID from the authenticate result to call `authService.updateProvider`.
+- Registered `authenticate("customer", ["bearer", "session"])` middleware for the new route in `middlewares.ts`.
+- Storefront `updatePassword` (`lib/data/customer.ts`) updated to call the new endpoint instead of `sdk.auth.updateProvider`.
+
+### Cart Transfer Banner (2026-04-20)
+- The orange "Something went wrong when we tried to transfer your cart" banner appears when a logged-in customer has a guest cart that hasn't been linked to their account.
+- `POST /store/carts/:id/customer` runs a workflow via the Workflow Engine — **requires Redis to be running**. If Redis is down the route returns 500 and the banner appears.
+- Fix: ensure Redis is running before starting the backend (see Run Commands below).
+
+### Ineligible Promotion Warning (2026-04-20)
+- **Problem:** Medusa silently accepts a promo code even when no cart items match the promotion's rules (e.g. apparel-only discount applied to a non-apparel cart). No feedback was shown to the customer.
+- **Fix** (`checkout/components/discount-code/index.tsx`):
+  - Added `discount_total` and `*items.adjustments` to the default `retrieveCart` fields string so the value is always available on the cart prop.
+  - A `pendingCheck` ref stores `{ code, discountBefore }` before calling `applyPromotions`.
+  - A `useEffect` watches `cart.promotions` and `cart.discount_total`; once the newly applied code appears in `promotions` (confirming the server re-render), it compares `discountAfter <= discountBefore`. If true, shows a dismissible orange warning banner: *"CODE was applied, but none of the items in your cart are eligible for this promotion."*
 
 ---
 
 ## Run Commands
 
 ```bash
-# Terminal 1 — Backend
+# Terminal 1 — Redis (required for workflows, cart transfer, event bus)
+cd "c:/Users/Admin/Desktop/E-com Platform (Medusa)/Redis"
+& ".\redis-server.exe" ".\redis.windows.conf"
+
+# Terminal 2 — Backend
 cd "c:/Users/Admin/Desktop/E-com Platform (Medusa)/agentic-store"
 pnpm dev
 
-# Terminal 2 — Storefront  
+# Terminal 3 — Storefront  
 cd "c:/Users/Admin/Desktop/E-com Platform (Medusa)/agentic-store-storefront"
 pnpm dev
 
-# Terminal 3 — Agent Service (to be built)
+# Terminal 4 — Agent Service (to be built)
 cd "c:/Users/Admin/Desktop/E-com Platform (Medusa)/agent-service"
 pnpm dev
 ```
