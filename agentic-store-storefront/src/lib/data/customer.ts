@@ -44,34 +44,35 @@ export const retrieveCustomer =
   }
 
 export const updatePassword = async (
-  email: string,
+  _email: string,
   oldPassword: string,
   newPassword: string
 ): Promise<{ success: boolean; error: string | null }> => {
   try {
-    // Re-authenticate with old password to get a fresh token
-    const token = await sdk.auth.login("customer", "emailpass", {
-      email,
-      password: oldPassword,
-    })
+    const headers = await getAuthHeaders()
 
-    if (!token || typeof token !== "string") {
-      return { success: false, error: "Current password is incorrect" }
-    }
-
-    // Update password using the fresh token
-    await sdk.auth.updateProvider(
-      "customer",
-      "emailpass",
-      { password: newPassword },
-      token
+    const response = await sdk.client.fetch<{ success: boolean }>(
+      "/store/customers/me/password",
+      {
+        method: "POST",
+        headers,
+        body: { old_password: oldPassword, new_password: newPassword },
+      }
     )
+
+    if (!response?.success) {
+      return { success: false, error: "Failed to update password" }
+    }
 
     return { success: true, error: null }
   } catch (error: any) {
+    const message = error?.message || ""
+    if (message.toLowerCase().includes("incorrect") || error?.status === 401) {
+      return { success: false, error: "Current password is incorrect" }
+    }
     return {
       success: false,
-      error: error?.message || "Failed to update password",
+      error: message || "Failed to update password",
     }
   }
 }
