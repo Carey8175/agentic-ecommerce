@@ -43,6 +43,39 @@ export const retrieveCustomer =
       .catch(() => null)
   }
 
+export const updatePassword = async (
+  email: string,
+  oldPassword: string,
+  newPassword: string
+): Promise<{ success: boolean; error: string | null }> => {
+  try {
+    // Re-authenticate with old password to get a fresh token
+    const token = await sdk.auth.login("customer", "emailpass", {
+      email,
+      password: oldPassword,
+    })
+
+    if (!token || typeof token !== "string") {
+      return { success: false, error: "Current password is incorrect" }
+    }
+
+    // Update password using the fresh token
+    await sdk.auth.updateProvider(
+      "customer",
+      "emailpass",
+      { password: newPassword },
+      token
+    )
+
+    return { success: true, error: null }
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error?.message || "Failed to update password",
+    }
+  }
+}
+
 export const updateCustomer = async (body: HttpTypes.StoreUpdateCustomer) => {
   const headers = {
     ...(await getAuthHeaders()),

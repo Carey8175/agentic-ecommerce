@@ -333,7 +333,36 @@ export async function submitPromotionForm(
   }
 }
 
-// TODO: Pass a POJO instead of a form entity here
+type AddressFields = {
+  first_name: string
+  last_name: string
+  address_1: string
+  address_2: string
+  company: string
+  postal_code: string
+  city: string
+  country_code: string
+  province: string
+  phone: string
+}
+
+function parseAddress(formData: FormData, prefix: string): AddressFields {
+  const get = (field: string) =>
+    (formData.get(`${prefix}.${field}`) as string) ?? ""
+  return {
+    first_name: get("first_name"),
+    last_name: get("last_name"),
+    address_1: get("address_1"),
+    address_2: "",
+    company: get("company"),
+    postal_code: get("postal_code"),
+    city: get("city"),
+    country_code: get("country_code"),
+    province: get("province"),
+    phone: get("phone"),
+  }
+}
+
 export async function setAddresses(currentState: unknown, formData: FormData) {
   try {
     if (!formData) {
@@ -344,38 +373,17 @@ export async function setAddresses(currentState: unknown, formData: FormData) {
       throw new Error("No existing cart found when setting addresses")
     }
 
-    const data = {
-      shipping_address: {
-        first_name: formData.get("shipping_address.first_name"),
-        last_name: formData.get("shipping_address.last_name"),
-        address_1: formData.get("shipping_address.address_1"),
-        address_2: "",
-        company: formData.get("shipping_address.company"),
-        postal_code: formData.get("shipping_address.postal_code"),
-        city: formData.get("shipping_address.city"),
-        country_code: formData.get("shipping_address.country_code"),
-        province: formData.get("shipping_address.province"),
-        phone: formData.get("shipping_address.phone"),
-      },
-      email: formData.get("email"),
-    } as any
+    const shippingAddress = parseAddress(formData, "shipping_address")
+    const sameAsBilling = formData.get("same_as_billing") === "on"
 
-    const sameAsBilling = formData.get("same_as_billing")
-    if (sameAsBilling === "on") data.billing_address = data.shipping_address
+    const data: HttpTypes.StoreUpdateCart = {
+      shipping_address: shippingAddress,
+      billing_address: sameAsBilling
+        ? shippingAddress
+        : parseAddress(formData, "billing_address"),
+      email: (formData.get("email") as string) ?? "",
+    }
 
-    if (sameAsBilling !== "on")
-      data.billing_address = {
-        first_name: formData.get("billing_address.first_name"),
-        last_name: formData.get("billing_address.last_name"),
-        address_1: formData.get("billing_address.address_1"),
-        address_2: "",
-        company: formData.get("billing_address.company"),
-        postal_code: formData.get("billing_address.postal_code"),
-        city: formData.get("billing_address.city"),
-        country_code: formData.get("billing_address.country_code"),
-        province: formData.get("billing_address.province"),
-        phone: formData.get("billing_address.phone"),
-      }
     await updateCart(data)
   } catch (e: any) {
     return e.message

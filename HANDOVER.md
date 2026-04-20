@@ -82,6 +82,17 @@
 
 ---
 
+## Completed Since Initial Handover
+
+### Storefront Bug Fixes & Code Quality (2026-04-20)
+- **Password update** (`profile-password/index.tsx`) — implemented using `sdk.auth.updateProvider`. Re-authenticates with old password first, then updates. Validates new password / confirm match client-side.
+- **Email update** (`profile-email/index.tsx`) — confirmed `StoreUpdateCustomer` API does not expose email changes. Field is now disabled with a clear user-facing message rather than silently succeeding.
+- **Image typings** (`thumbnail/index.tsx`) — replaced `any[]` with `HttpTypes.StoreProductImage[]`.
+- **Cart inventory limit** (`cart/components/item/index.tsx`) — quantity dropdown now caps to real `item.variant?.inventory_quantity` instead of hardcoded `10`.
+- **Cart address parsing** (`cart.ts`) — replaced 20 hardcoded `formData.get()` calls with a typed `parseAddress()` helper and `HttpTypes.StoreUpdateCart` type. Same behaviour, type-safe.
+
+---
+
 ## Run Commands
 
 ```bash
