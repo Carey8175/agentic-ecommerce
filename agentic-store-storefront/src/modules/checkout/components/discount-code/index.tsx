@@ -1,6 +1,7 @@
 "use client"
 
 import { Badge, Heading, Input, Label, Text, Button, IconButton } from "@medusajs/ui"
+import { ExclamationCircleSolid, XMark } from "@medusajs/icons"
 import React from "react"
 
 import { applyPromotions } from "@lib/data/cart"
@@ -19,9 +20,35 @@ type DiscountCodeProps = {
 const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
   const [isOpen, setIsOpen] = React.useState(false)
   const [errorMessage, setErrorMessage] = React.useState("")
+  const [ineligibleWarning, setIneligibleWarning] = React.useState<string | null>(null)
+  const lastAppliedCode = React.useRef<string | null>(null)
 
   const { promotions = [] } = cart
+
+  // After re-render (server cart prop updated), check if the newly applied code
+  // generated any discount. If not, show a warning.
+  React.useEffect(() => {
+    if (!lastAppliedCode.current) return
+    const appliedCode = lastAppliedCode.current
+
+    const matchedPromotion = promotions.find(
+      (p) => p.code?.toLowerCase() === appliedCode.toLowerCase()
+    )
+
+    if (matchedPromotion) {
+      // Code was accepted — check if it actually discounted anything
+      const hasDiscount = (cart.discount_total ?? 0) > 0
+      if (!hasDiscount) {
+        setIneligibleWarning(
+          `"${appliedCode.toUpperCase()}" was applied, but none of the items in your cart are eligible for this promotion.`
+        )
+      }
+      lastAppliedCode.current = null
+    }
+  }, [promotions, cart.discount_total])
+
   const removePromotionCode = async (code: string) => {
+    setIneligibleWarning(null)
     const validPromotions = promotions.filter(
       (promotion) => promotion.code !== code
     )
@@ -33,6 +60,7 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
 
   const addPromotionCode = async (formData: FormData) => {
     setErrorMessage("")
+    setIneligibleWarning(null)
 
     const code = formData.get("code")
     if (!code) {
@@ -45,8 +73,10 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
     codes.push(code.toString())
 
     try {
+      lastAppliedCode.current = code.toString()
       await applyPromotions(codes)
     } catch (e: any) {
+      lastAppliedCode.current = null
       setErrorMessage(e.message)
     }
 
@@ -101,6 +131,24 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
             </>
           )}
         </form>
+
+        {ineligibleWarning && (
+          <div
+            className="flex items-start gap-2 rounded-md border border-orange-200 bg-orange-50 px-3 py-2.5 mb-4 text-sm text-orange-800"
+            data-testid="discount-ineligible-warning"
+          >
+            <ExclamationCircleSolid className="mt-0.5 shrink-0 text-orange-500" />
+            <span className="flex-1">{ineligibleWarning}</span>
+            <button
+              type="button"
+              onClick={() => setIneligibleWarning(null)}
+              className="ml-1 shrink-0 text-orange-500 hover:text-orange-700"
+              aria-label="Dismiss"
+            >
+              <XMark />
+            </button>
+          </div>
+        )}
 
         {promotions.length > 0 && (
           <div className="w-full flex items-center">
