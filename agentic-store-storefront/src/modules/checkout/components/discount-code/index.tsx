@@ -21,29 +21,32 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
   const [isOpen, setIsOpen] = React.useState(false)
   const [errorMessage, setErrorMessage] = React.useState("")
   const [ineligibleWarning, setIneligibleWarning] = React.useState<string | null>(null)
-  const lastAppliedCode = React.useRef<string | null>(null)
+
+  // Track pending check: { code, discountBefore }
+  const pendingCheck = React.useRef<{ code: string; discountBefore: number } | null>(null)
 
   const { promotions = [] } = cart
 
-  // After re-render (server cart prop updated), check if the newly applied code
-  // generated any discount. If not, show a warning.
+  // After re-render (cart prop updated by server), check if newly applied
+  // code actually produced a discount. discount_total and promotions are
+  // now included in the cart fields fetched by retrieveCart.
   React.useEffect(() => {
-    if (!lastAppliedCode.current) return
-    const appliedCode = lastAppliedCode.current
+    if (!pendingCheck.current) return
+    const { code, discountBefore } = pendingCheck.current
 
-    const matchedPromotion = promotions.find(
-      (p) => p.code?.toLowerCase() === appliedCode.toLowerCase()
+    const codeApplied = promotions.some(
+      (p) => p.code?.toLowerCase() === code.toLowerCase()
     )
 
-    if (matchedPromotion) {
-      // Code was accepted — check if it actually discounted anything
-      const hasDiscount = (cart.discount_total ?? 0) > 0
-      if (!hasDiscount) {
-        setIneligibleWarning(
-          `"${appliedCode.toUpperCase()}" was applied, but none of the items in your cart are eligible for this promotion.`
-        )
-      }
-      lastAppliedCode.current = null
+    if (!codeApplied) return // cart hasn't re-rendered yet
+
+    const discountAfter = cart.discount_total ?? 0
+    pendingCheck.current = null
+
+    if (discountAfter <= discountBefore) {
+      setIneligibleWarning(
+        `"${code.toUpperCase()}" was applied, but none of the items in your cart are eligible for this promotion.`
+      )
     }
   }, [promotions, cart.discount_total])
 
@@ -62,21 +65,21 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
     setErrorMessage("")
     setIneligibleWarning(null)
 
-    const code = formData.get("code")
+    const code = formData.get("code") as string
     if (!code) {
       return
     }
     const input = document.getElementById("promotion-input") as HTMLInputElement
-    const codes = promotions
+    const existingCodes = promotions
       .filter((p) => p.code !== undefined)
       .map((p) => p.code!)
-    codes.push(code.toString())
 
     try {
-      lastAppliedCode.current = code.toString()
-      await applyPromotions(codes)
+      // Snapshot discount_total before applying so we can compare after re-render
+      pendingCheck.current = { code, discountBefore: cart.discount_total ?? 0 }
+      await applyPromotions([...existingCodes, code])
     } catch (e: any) {
-      lastAppliedCode.current = null
+      pendingCheck.current = null
       setErrorMessage(e.message)
     }
 
