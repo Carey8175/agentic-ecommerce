@@ -17,10 +17,11 @@ export type NativeSelectProps = {
 
 const NativeSelect = forwardRef<HTMLSelectElement, NativeSelectProps>(
   (
-    { placeholder = "Select...", defaultValue, className, children, ...props },
+    { placeholder = "Select...", defaultValue, value, className, children, ...props },
     ref
   ) => {
     const innerRef = useRef<HTMLSelectElement>(null)
+    const isControlled = value !== undefined
     const [isPlaceholder, setIsPlaceholder] = useState(false)
 
     useImperativeHandle<HTMLSelectElement | null, HTMLSelectElement | null>(
@@ -29,12 +30,9 @@ const NativeSelect = forwardRef<HTMLSelectElement, NativeSelectProps>(
     )
 
     useEffect(() => {
-      if (innerRef.current && innerRef.current.value === "") {
-        setIsPlaceholder(true)
-      } else {
-        setIsPlaceholder(false)
-      }
-    }, [innerRef.current?.value])
+      const current = isControlled ? value : innerRef.current?.value
+      setIsPlaceholder(!current || current === "")
+    }, [value, isControlled])
 
     return (
       <div>
@@ -51,7 +49,7 @@ const NativeSelect = forwardRef<HTMLSelectElement, NativeSelectProps>(
         >
           <select
             ref={innerRef}
-            defaultValue={defaultValue}
+            {...(isControlled ? { value } : { defaultValue })}
             {...props}
             className="appearance-none flex-1 bg-transparent border-none px-4 py-2.5 transition-colors duration-150 outline-none "
           >

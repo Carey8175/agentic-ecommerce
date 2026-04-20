@@ -10,7 +10,7 @@ const CountrySelect = forwardRef<
   NativeSelectProps & {
     region?: HttpTypes.StoreRegion
   }
->(({ placeholder = "Country", region, defaultValue, ...props }, ref) => {
+>(({ placeholder = "Country", region, defaultValue, value, ...props }, ref) => {
   const innerRef = useRef<HTMLSelectElement>(null)
 
   useImperativeHandle<HTMLSelectElement | null, HTMLSelectElement | null>(
@@ -34,6 +34,7 @@ const CountrySelect = forwardRef<
       ref={innerRef}
       placeholder={placeholder}
       defaultValue={defaultValue}
+      value={value}
       {...props}
     >
       {countryOptions?.map(({ value, label }, index) => (

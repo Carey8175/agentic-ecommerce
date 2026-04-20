@@ -2,25 +2,12 @@
  * Tests for ProfileEmail component
  * src/modules/account/components/profile-email/index.tsx
  *
- * Email updates are disabled because Medusa's StoreUpdateCustomer API does not
- * support changing email. The component shows the current email as read-only
- * with a message directing users to contact support.
+ * Email updates are not supported by Medusa's StoreUpdateCustomer API.
+ * The component is a plain read-only display — no form, no edit button.
  */
 import React from "react"
 import { render, screen } from "@testing-library/react"
 import ProfileEmail from "@modules/account/components/profile-email"
-
-jest.mock("@modules/account/components/account-info", () => {
-  const MockAccountInfo = ({ children, label, currentInfo }: any) => (
-    <div>
-      <span data-testid="account-info-label">{label}</span>
-      <span data-testid="current-info">{currentInfo}</span>
-      {children}
-    </div>
-  )
-  MockAccountInfo.displayName = "MockAccountInfo"
-  return MockAccountInfo
-})
 
 const fakeCustomer = {
   id: "cus_01",
@@ -37,32 +24,28 @@ describe("ProfileEmail", () => {
     expect(screen.getByTestId("current-info")).toHaveTextContent("user@test.com")
   })
 
-  it("renders the email input with the customer's email as default value", () => {
+  it("renders the wrapper with the correct test id", () => {
     render(<ProfileEmail customer={fakeCustomer} />)
-    const input = screen.getByTestId("email-input") as HTMLInputElement
-    expect(input.value).toBe("user@test.com")
+    expect(screen.getByTestId("account-email-editor")).toBeInTheDocument()
   })
 
-  it("renders the email input as disabled", () => {
+  it("shows the Email label in uppercase style", () => {
     render(<ProfileEmail customer={fakeCustomer} />)
-    const input = screen.getByTestId("email-input")
-    expect(input).toBeDisabled()
+    expect(screen.getByText("Email")).toBeInTheDocument()
   })
 
-  it("shows the cannot-change message", () => {
+  it("does not render any input field", () => {
     render(<ProfileEmail customer={fakeCustomer} />)
-    expect(
-      screen.getByText(/email address cannot be changed/i)
-    ).toBeInTheDocument()
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument()
   })
 
-  it("does not render a submit button (no form action)", () => {
-    render(<ProfileEmail customer={fakeCustomer} />)
-    expect(screen.queryByRole("button", { name: /save/i })).not.toBeInTheDocument()
+  it("does not render any form element", () => {
+    const { container } = render(<ProfileEmail customer={fakeCustomer} />)
+    expect(container.querySelector("form")).toBeNull()
   })
 
-  it("renders with the label 'Email'", () => {
+  it("does not render any button", () => {
     render(<ProfileEmail customer={fakeCustomer} />)
-    expect(screen.getByTestId("account-info-label")).toHaveTextContent("Email")
+    expect(screen.queryByRole("button")).not.toBeInTheDocument()
   })
 })

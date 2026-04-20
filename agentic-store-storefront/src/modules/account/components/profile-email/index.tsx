@@ -1,8 +1,5 @@
 "use client"
 
-import React from "react";
-import Input from "@modules/common/components/input"
-import AccountInfo from "../account-info"
 import { HttpTypes } from "@medusajs/types"
 
 type MyInformationProps = {
@@ -10,35 +7,17 @@ type MyInformationProps = {
 }
 
 const ProfileEmail: React.FC<MyInformationProps> = ({ customer }) => {
-  // Medusa's StoreUpdateCustomer API does not support email updates.
-  // Email changes require re-authentication and are not exposed via the store API.
   return (
-    <form className="w-full">
-      <AccountInfo
-        label="Email"
-        currentInfo={`${customer.email}`}
-        isSuccess={false}
-        isError={false}
-        clearState={() => {}}
-        data-testid="account-email-editor"
-      >
-        <div className="grid grid-cols-1 gap-y-2">
-          <Input
-            label="Email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            required
-            defaultValue={customer.email}
-            disabled
-            data-testid="email-input"
-          />
-          <p className="text-ui-fg-subtle text-small-regular">
-            Email address cannot be changed. Please contact support if you need to update your email.
-          </p>
+    <div className="text-small-regular" data-testid="account-email-editor">
+      <div className="flex items-end justify-between">
+        <div className="flex flex-col">
+          <span className="uppercase text-ui-fg-base">Email</span>
+          <span className="font-semibold" data-testid="current-info">
+            {customer.email}
+          </span>
         </div>
-      </AccountInfo>
-    </form>
+      </div>
+    </div>
   )
 }
 
