@@ -1,10 +1,10 @@
 # Agentic E-Commerce Platform — Byteshop
 
-A modern, AI-powered e-commerce platform built on **Medusa v2** and **Next.js 15**, branded as **Byteshop**. Features a fully custom storefront UI, product review system, virtual try-on studio, and order tracking — with an agentic layer in progress for intelligent product discovery and conversational shopping.
+A modern, AI-powered e-commerce platform built on **Medusa v2** and **Next.js 15**, branded as **Byteshop**. Features a fully custom storefront UI, product review system, virtual try-on studio, order tracking, and a customised Medusa admin dashboard — with an agentic layer in progress for intelligent product discovery and conversational shopping.
 
 ---
 
-## Screenshots
+## Storefront
 
 ### Store / Landing Page
 ![Store Page](docs/images/landing_page.png)
@@ -23,6 +23,25 @@ A modern, AI-powered e-commerce platform built on **Medusa v2** and **Next.js 15
 
 ### Virtual Try-On Studio
 ![Try-On Studio](docs/images/try-on_Page.png)
+
+---
+
+## Admin Dashboard
+
+### Overview
+![Admin Dashboard](docs/images/admin_dashboard.png)
+
+### Product Management
+![Admin Product Page](docs/images/admin_product_page.png)
+
+### Inventory & Fulfillment Tracking
+![Admin Inventory Tracking](docs/images/admin_inventory_tracking.png)
+
+### Promotion Creation
+![Admin Promo Creation](docs/images/admin_promo_creation.png)
+
+### Review Management
+![Admin Review Management](docs/images/admin_review_management.png)
 
 ---
 
@@ -47,7 +66,6 @@ A modern, AI-powered e-commerce platform built on **Medusa v2** and **Next.js 15
 - Eligibility check: must have a completed order containing the product
 - Duplicate prevention per customer per product per order
 - Average rating displayed on product cards and detail pages
-- Admin dashboard page to view and delete reviews
 
 ### Virtual Try-On Studio (`/try-on`)
 - 3-step flow: Select item from cart → Upload photo → Generate try-on
@@ -55,9 +73,11 @@ A modern, AI-powered e-commerce platform built on **Medusa v2** and **Next.js 15
 - Scan overlay animation
 - Wired to `/agent/tryon` endpoint (mock fallback included)
 
-### Admin Customisations
-- Inventory UI widget: auto-reloads after stock updates (MutationObserver on success toast)
-- Reviews admin page: table with star display, review text, product/order IDs, date, delete, pagination, product filter
+### Admin Dashboard Customisations
+- **Review management** — dedicated admin page to browse, filter by product, and delete customer reviews with star display
+- **Inventory widget** — auto-reloads after stock updates via MutationObserver on success toast
+- **Fulfillment tracking** — add tracking numbers and shipping labels directly from the order page; visible to customers immediately
+- **Promotion creation** — create discount codes with eligibility rules; storefront warns customers when a code applies but no cart items qualify
 
 ### More Features Not Pictured
 - **Promo code warnings** — banner when a discount code is applied but no eligible items are in the cart
