@@ -3,7 +3,6 @@
 import { Table, Text, clx } from "@medusajs/ui"
 import { updateLineItem } from "@lib/data/cart"
 import { HttpTypes } from "@medusajs/types"
-import CartItemSelect from "@modules/cart/components/cart-item-select"
 import ErrorMessage from "@modules/checkout/components/error-message"
 import DeleteButton from "@modules/common/components/delete-button"
 import LineItemOptions from "@modules/common/components/line-item-options"
@@ -40,9 +39,8 @@ const Item = ({ item, type = "full", currencyCode }: ItemProps) => {
       })
   }
 
-  // TODO: Update this to grab the actual max inventory
-  const maxQtyFromInventory = 10
-  const maxQuantity = item.variant?.manage_inventory ? 10 : maxQtyFromInventory
+  const maxQtyFromInventory = item.variant?.inventory_quantity ?? 10
+  const maxQuantity = item.variant?.manage_inventory ? maxQtyFromInventory : 10
 
   return (
     <Table.Row className="w-full" data-testid="product-row">
@@ -74,31 +72,34 @@ const Item = ({ item, type = "full", currencyCode }: ItemProps) => {
 
       {type === "full" && (
         <Table.Cell>
-          <div className="flex gap-2 items-center w-28">
+          <div className="flex gap-2 items-center">
             <DeleteButton id={item.id} data-testid="product-delete-button" />
-            <CartItemSelect
-              value={item.quantity}
-              onChange={(value) => changeQuantity(parseInt(value.target.value))}
-              className="w-14 h-10 p-4"
-              data-testid="product-select-button"
-            >
-              {/* TODO: Update this with the v2 way of managing inventory */}
-              {Array.from(
-                {
-                  length: Math.min(maxQuantity, 10),
-                },
-                (_, i) => (
-                  <option value={i + 1} key={i}>
-                    {i + 1}
-                  </option>
-                )
-              )}
-
-              <option value={1} key={1}>
-                1
-              </option>
-            </CartItemSelect>
-            {updating && <Spinner />}
+            <div className="flex items-center border border-ui-border-base rounded-md overflow-hidden" data-testid="product-quantity-control">
+              <button
+                type="button"
+                onClick={() => changeQuantity(Math.max(1, item.quantity - 1))}
+                disabled={updating || item.quantity <= 1}
+                className="w-8 h-8 flex items-center justify-center text-ui-fg-base hover:bg-ui-bg-subtle disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                data-testid="product-quantity-minus"
+              >
+                −
+              </button>
+              <span
+                className="w-8 h-8 flex items-center justify-center text-small-regular text-ui-fg-base border-x border-ui-border-base"
+                data-testid="product-quantity-value"
+              >
+                {updating ? <Spinner /> : item.quantity}
+              </span>
+              <button
+                type="button"
+                onClick={() => changeQuantity(Math.min(maxQuantity, item.quantity + 1))}
+                disabled={updating || item.quantity >= maxQuantity}
+                className="w-8 h-8 flex items-center justify-center text-ui-fg-base hover:bg-ui-bg-subtle disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                data-testid="product-quantity-plus"
+              >
+                +
+              </button>
+            </div>
           </div>
           <ErrorMessage error={error} data-testid="product-error-message" />
         </Table.Cell>

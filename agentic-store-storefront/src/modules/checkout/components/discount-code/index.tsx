@@ -1,6 +1,7 @@
 "use client"
 
 import { Badge, Heading, Input, Label, Text, Button, IconButton } from "@medusajs/ui"
+import { ExclamationCircleSolid, XMark } from "@medusajs/icons"
 import React from "react"
 
 import { applyPromotions } from "@lib/data/cart"
@@ -19,9 +20,38 @@ type DiscountCodeProps = {
 const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
   const [isOpen, setIsOpen] = React.useState(false)
   const [errorMessage, setErrorMessage] = React.useState("")
+  const [ineligibleWarning, setIneligibleWarning] = React.useState<string | null>(null)
+
+  // Track pending check: { code, discountBefore }
+  const pendingCheck = React.useRef<{ code: string; discountBefore: number } | null>(null)
 
   const { promotions = [] } = cart
+
+  // After re-render (cart prop updated by server), check if newly applied
+  // code actually produced a discount. discount_total and promotions are
+  // now included in the cart fields fetched by retrieveCart.
+  React.useEffect(() => {
+    if (!pendingCheck.current) return
+    const { code, discountBefore } = pendingCheck.current
+
+    const codeApplied = promotions.some(
+      (p) => p.code?.toLowerCase() === code.toLowerCase()
+    )
+
+    if (!codeApplied) return // cart hasn't re-rendered yet
+
+    const discountAfter = cart.discount_total ?? 0
+    pendingCheck.current = null
+
+    if (discountAfter <= discountBefore) {
+      setIneligibleWarning(
+        `"${code.toUpperCase()}" was applied, but none of the items in your cart are eligible for this promotion.`
+      )
+    }
+  }, [promotions, cart.discount_total])
+
   const removePromotionCode = async (code: string) => {
+    setIneligibleWarning(null)
     const validPromotions = promotions.filter(
       (promotion) => promotion.code !== code
     )
@@ -33,20 +63,23 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
 
   const addPromotionCode = async (formData: FormData) => {
     setErrorMessage("")
+    setIneligibleWarning(null)
 
-    const code = formData.get("code")
+    const code = formData.get("code") as string
     if (!code) {
       return
     }
     const input = document.getElementById("promotion-input") as HTMLInputElement
-    const codes = promotions
+    const existingCodes = promotions
       .filter((p) => p.code !== undefined)
       .map((p) => p.code!)
-    codes.push(code.toString())
 
     try {
-      await applyPromotions(codes)
+      // Snapshot discount_total before applying so we can compare after re-render
+      pendingCheck.current = { code, discountBefore: cart.discount_total ?? 0 }
+      await applyPromotions([...existingCodes, code])
     } catch (e: any) {
+      pendingCheck.current = null
       setErrorMessage(e.message)
     }
 
@@ -101,6 +134,24 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
             </>
           )}
         </form>
+
+        {ineligibleWarning && (
+          <div
+            className="flex items-start gap-2 rounded-md border border-orange-200 bg-orange-50 px-3 py-2.5 mb-4 text-sm text-orange-800"
+            data-testid="discount-ineligible-warning"
+          >
+            <ExclamationCircleSolid className="mt-0.5 shrink-0 text-orange-500" />
+            <span className="flex-1">{ineligibleWarning}</span>
+            <button
+              type="button"
+              onClick={() => setIneligibleWarning(null)}
+              className="ml-1 shrink-0 text-orange-500 hover:text-orange-700"
+              aria-label="Dismiss"
+            >
+              <XMark />
+            </button>
+          </div>
+        )}
 
         {promotions.length > 0 && (
           <div className="w-full flex items-center">

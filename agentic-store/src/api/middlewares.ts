@@ -1,6 +1,12 @@
-import { defineMiddlewares } from "@medusajs/framework/http";
+import { defineMiddlewares, authenticate } from "@medusajs/framework/http";
 
 export default defineMiddlewares({
+  routes: [
+    {
+      matcher: "/store/customers/me/password",
+      middlewares: [authenticate("customer", ["bearer", "session"])],
+    },
+  ],
   errorHandler: (err, req, res, next) => {
     // Only intercept store/custom checkout routes — let admin and internal routes
     // use Medusa's default error handling so the admin UI works correctly.

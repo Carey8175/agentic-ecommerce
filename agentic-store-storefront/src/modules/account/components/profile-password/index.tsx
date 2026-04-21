@@ -4,7 +4,7 @@ import React, { useEffect, useActionState } from "react"
 import Input from "@modules/common/components/input"
 import AccountInfo from "../account-info"
 import { HttpTypes } from "@medusajs/types"
-import { toast } from "@medusajs/ui"
+import { updatePassword } from "@lib/data/customer"
 
 type MyInformationProps = {
   customer: HttpTypes.StoreCustomer
@@ -13,29 +13,44 @@ type MyInformationProps = {
 const ProfilePassword: React.FC<MyInformationProps> = ({ customer }) => {
   const [successState, setSuccessState] = React.useState(false)
 
-  // TODO: Add support for password updates
-  const updatePassword = async () => {
-    toast.info("Password update is not implemented")
+  const updateCustomerPassword = async (
+    _currentState: Record<string, unknown>,
+    formData: FormData
+  ) => {
+    const oldPassword = formData.get("old_password") as string
+    const newPassword = formData.get("new_password") as string
+    const confirmPassword = formData.get("confirm_password") as string
+
+    if (newPassword !== confirmPassword) {
+      return { success: false, error: "New passwords do not match" }
+    }
+
+    return await updatePassword(customer.email, oldPassword, newPassword)
   }
+
+  const [state, formAction] = useActionState(updateCustomerPassword, {
+    error: null,
+    success: false,
+  })
 
   const clearState = () => {
     setSuccessState(false)
   }
 
+  useEffect(() => {
+    setSuccessState(state.success)
+  }, [state])
+
   return (
-    <form
-      action={updatePassword}
-      onReset={() => clearState()}
-      className="w-full"
-    >
+    <form action={formAction} onReset={() => clearState()} className="w-full">
       <AccountInfo
         label="Password"
         currentInfo={
           <span>The password is not shown for security reasons</span>
         }
         isSuccess={successState}
-        isError={false}
-        errorMessage={undefined}
+        isError={!!state.error}
+        errorMessage={state.error ?? undefined}
         clearState={clearState}
         data-testid="account-password-editor"
       >
