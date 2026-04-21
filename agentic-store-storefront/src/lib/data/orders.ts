@@ -8,6 +8,7 @@ import { HttpTypes } from "@medusajs/types"
 export const retrieveOrder = async (id: string) => {
   const headers = {
     ...(await getAuthHeaders()),
+    "x-publishable-api-key": process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY!,
   }
 
   const next = {
@@ -19,7 +20,7 @@ export const retrieveOrder = async (id: string) => {
       method: "GET",
       query: {
         fields:
-          "*payment_collections.payments,*items,*items.metadata,*items.variant,*items.product",
+          "*payment_collections.payments,*items,*items.metadata,*items.variant,*items.product,*fulfillments,*fulfillments.labels",
       },
       headers,
       next,
@@ -36,6 +37,7 @@ export const listOrders = async (
 ) => {
   const headers = {
     ...(await getAuthHeaders()),
+    "x-publishable-api-key": process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY!,
   }
 
   const next = {
