@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useCallback } from "react"
-import SortProducts, { SortOptions } from "./sort-products"
+import { SortOptions } from "./sort-products"
 
 type Category = {
   id: string
@@ -16,6 +16,12 @@ type RefinementListProps = {
   "data-testid"?: string
   categories?: Category[]
 }
+
+const sortOptions: { value: SortOptions; label: string }[] = [
+  { value: "created_at", label: "Featured" },
+  { value: "price_asc", label: "Price: Low to High" },
+  { value: "price_desc", label: "Price: High to Low" },
+]
 
 const RefinementList = ({ sortBy, "data-testid": dataTestId, categories }: RefinementListProps) => {
   const router = useRouter()
@@ -38,9 +44,9 @@ const RefinementList = ({ sortBy, "data-testid": dataTestId, categories }: Refin
 
   const selectedCategory = searchParams.get("categoryId")
 
-  const handleCategoryClick = (id: string) => {
+  const handleCategoryClick = (id: string | null) => {
     const params = new URLSearchParams(searchParams)
-    if (params.get("categoryId") === id) {
+    if (id === null || params.get("categoryId") === id) {
       params.delete("categoryId")
     } else {
       params.set("categoryId", id)
@@ -50,37 +56,59 @@ const RefinementList = ({ sortBy, "data-testid": dataTestId, categories }: Refin
   }
 
   return (
-    <div className="flex small:flex-col gap-4 mb-8 small:min-w-[220px]">
-      <div className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col gap-6 w-full shadow-sm">
+    <div className="flex items-center justify-between gap-4 mb-8 flex-wrap" data-testid={dataTestId}>
+      {/* Category chips */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {/* All chip */}
+        <button
+          onClick={() => handleCategoryClick(null)}
+          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-xs font-medium transition-all ${
+            !selectedCategory
+              ? "bg-gray-900 border-gray-900 text-white"
+              : "bg-white border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600"
+          }`}
+        >
+          All
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
 
-        {/* Sort */}
-        <div className="flex flex-col gap-3">
-          <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">Sort by</span>
-          <SortProducts sortBy={sortBy} setQueryParams={setQueryParams} data-testid={dataTestId} />
-        </div>
+        {categories?.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => handleCategoryClick(c.id)}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-xs font-medium transition-all ${
+              selectedCategory === c.id
+                ? "bg-gray-900 border-gray-900 text-white"
+                : "bg-white border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600"
+            }`}
+          >
+            {c.name}
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+        ))}
+      </div>
 
-        {/* Categories */}
-        {categories && categories.length > 0 && (
-          <div className="flex flex-col gap-3 border-t border-gray-100 pt-5">
-            <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">Categories</span>
-            <ul className="flex flex-col gap-1">
-              {categories.map((c) => (
-                <li key={c.id}>
-                  <button
-                    onClick={() => handleCategoryClick(c.id)}
-                    className={`text-sm text-left w-full px-3 py-2 rounded-lg transition-all ${
-                      selectedCategory === c.id
-                        ? "bg-indigo-50 text-indigo-700 font-semibold border border-indigo-100"
-                        : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
-                    }`}
-                  >
-                    {c.name}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+      {/* Sort dropdown */}
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <span className="text-xs text-gray-400">Sort by</span>
+        <select
+          value={sortBy}
+          onChange={(e) => setQueryParams("sortBy", e.target.value)}
+          className="text-xs text-gray-700 border border-gray-200 rounded-full px-3 py-1.5 bg-white cursor-pointer outline-none focus:border-indigo-300 transition-colors appearance-none pr-7"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
+            backgroundRepeat: "no-repeat",
+            backgroundPosition: "right 10px center",
+          }}
+        >
+          {sortOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
       </div>
     </div>
   )

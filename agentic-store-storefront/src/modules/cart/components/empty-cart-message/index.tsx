@@ -1,23 +1,27 @@
-import { Heading, Text } from "@medusajs/ui"
-
-import InteractiveLink from "@modules/common/components/interactive-link"
+import { ShoppingCart } from "@medusajs/icons"
+import { Button } from "@medusajs/ui"
+import LocalizedClientLink from "@modules/common/components/localized-client-link"
 
 const EmptyCartMessage = () => {
   return (
-    <div className="py-48 px-2 flex flex-col justify-center items-start" data-testid="empty-cart-message">
-      <Heading
-        level="h1"
-        className="flex flex-row text-3xl-regular gap-x-2 items-baseline"
-      >
-        Cart
-      </Heading>
-      <Text className="text-base-regular mt-4 mb-6 max-w-[32rem]">
-        You don&apos;t have anything in your cart. Let&apos;s change that, use
-        the link below to start browsing our products.
-      </Text>
-      <div>
-        <InteractiveLink href="/store">Explore products</InteractiveLink>
+    <div 
+      className="py-24 px-4 flex flex-col items-center justify-center text-center bg-gray-50 border border-dashed border-gray-200 rounded-2xl" 
+      data-testid="empty-cart-message"
+    >
+      <div className="w-16 h-16 bg-white shadow-sm border border-gray-100 flex items-center justify-center rounded-2xl mb-6">
+        <ShoppingCart className="w-8 h-8 text-gray-400" />
       </div>
+      <h2 className="text-2xl font-bold tracking-tight text-gray-900 mb-3">
+        Your cart is empty
+      </h2>
+      <p className="text-gray-500 max-w-md mx-auto mb-8 text-sm">
+        Looks like you haven&apos;t added anything yet. Discover our latest products and find something you love.
+      </p>
+      <LocalizedClientLink href="/store">
+        <Button size="large" variant="primary" className="rounded-full px-8 bg-gray-900 text-white hover:bg-gray-800 transition-colors">
+          Explore Products
+        </Button>
+      </LocalizedClientLink>
     </div>
   )
 }

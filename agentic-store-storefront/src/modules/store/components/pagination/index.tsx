@@ -20,11 +20,11 @@ export function Pagination({
   const arrayRange = (start: number, stop: number) =>
     Array.from({ length: stop - start + 1 }, (_, index) => start + index)
 
-  // Function to handle page changes
+  // Function to handle page changes — scroll to #products (below hero)
   const handlePageChange = (newPage: number) => {
     const params = new URLSearchParams(searchParams)
     params.set("page", newPage.toString())
-    router.push(`${pathname}?${params.toString()}`)
+    router.push(`${pathname}?${params.toString()}#products`)
   }
 
   // Function to render a page button

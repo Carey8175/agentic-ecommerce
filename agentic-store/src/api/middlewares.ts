@@ -1,4 +1,5 @@
 import { defineMiddlewares, authenticate } from "@medusajs/framework/http";
+import { reviewStoreMiddlewares } from "./store/reviews/middlewares";
 
 export default defineMiddlewares({
   routes: [
@@ -6,6 +7,13 @@ export default defineMiddlewares({
       matcher: "/store/customers/me/password",
       middlewares: [authenticate("customer", ["bearer", "session"])],
     },
+    // Reviews POST requires customer auth; GET is public
+    {
+      matcher: "/store/reviews",
+      method: "POST",
+      middlewares: [authenticate("customer", ["session", "bearer"])],
+    },
+    ...reviewStoreMiddlewares,
   ],
   errorHandler: (err, req, res, next) => {
     // Only intercept store/custom checkout routes — let admin and internal routes
