@@ -53,6 +53,17 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
           <span>{getAmount(order.total)}</span>
         </div>
       </div>
+      
+      <div className="mt-8 text-gray-700 text-base">
+        We have sent the order confirmation details to{" "}
+        <span
+          className="text-gray-900 font-semibold"
+          data-testid="order-email"
+        >
+          {order.email}
+        </span>
+        .
+      </div>
     </div>
   )
 }

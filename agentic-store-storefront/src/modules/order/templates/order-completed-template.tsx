@@ -42,6 +42,18 @@ export default async function OrderCompletedTemplate({
           </Heading>
           <Items order={order} />
           <CartTotals totals={order} />
+          
+          <div className="mt-8 text-gray-700 text-base">
+            We have sent the order confirmation details to{" "}
+            <span
+              className="text-gray-900 font-semibold"
+              data-testid="order-email"
+            >
+              {order.email}
+            </span>
+            .
+          </div>
+
           <ShippingDetails order={order} />
           <PaymentDetails order={order} />
           <Help />

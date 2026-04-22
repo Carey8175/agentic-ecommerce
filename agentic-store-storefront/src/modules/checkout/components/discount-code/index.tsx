@@ -20,38 +20,33 @@ type DiscountCodeProps = {
 const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
   const [isOpen, setIsOpen] = React.useState(false)
   const [errorMessage, setErrorMessage] = React.useState("")
-  const [ineligibleWarning, setIneligibleWarning] = React.useState<string | null>(null)
-
-  // Track pending check: { code, discountBefore }
-  const pendingCheck = React.useRef<{ code: string; discountBefore: number } | null>(null)
+  const [droppedCode, setDroppedCode] = React.useState<string | null>(null)
 
   const { promotions = [] } = cart
 
-  // After re-render (cart prop updated by server), check if newly applied
-  // code actually produced a discount. discount_total and promotions are
-  // now included in the cart fields fetched by retrieveCart.
-  React.useEffect(() => {
-    if (!pendingCheck.current) return
-    const { code, discountBefore } = pendingCheck.current
-
-    const codeApplied = promotions.some(
-      (p) => p.code?.toLowerCase() === code.toLowerCase()
-    )
-
-    if (!codeApplied) return // cart hasn't re-rendered yet
-
-    const discountAfter = cart.discount_total ?? 0
-    pendingCheck.current = null
-
-    if (discountAfter <= discountBefore) {
-      setIneligibleWarning(
-        `"${code.toUpperCase()}" was applied, but none of the items in your cart are eligible for this promotion.`
-      )
-    }
-  }, [promotions, cart.discount_total])
+  // Find applied manual promotions that have no effect on the cart
+  const ineffectivePromotions = React.useMemo(() => {
+    if (!promotions || promotions.length === 0) return []
+    
+    const effectivePromotionIds = new Set<string>()
+    
+    cart.items?.forEach(item => {
+      item.adjustments?.forEach(adj => {
+        if (adj.promotion_id) effectivePromotionIds.add(adj.promotion_id)
+      })
+    })
+    
+    cart.shipping_methods?.forEach(sm => {
+      sm.adjustments?.forEach(adj => {
+        if (adj.promotion_id) effectivePromotionIds.add(adj.promotion_id)
+      })
+    })
+    
+    return promotions.filter(p => !p.is_automatic && p.id && !effectivePromotionIds.has(p.id))
+  }, [promotions, cart.items, cart.shipping_methods])
 
   const removePromotionCode = async (code: string) => {
-    setIneligibleWarning(null)
+    setDroppedCode(null)
     const validPromotions = promotions.filter(
       (promotion) => promotion.code !== code
     )
@@ -63,7 +58,7 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
 
   const addPromotionCode = async (formData: FormData) => {
     setErrorMessage("")
-    setIneligibleWarning(null)
+    setDroppedCode(null)
 
     const code = formData.get("code") as string
     if (!code) {
@@ -75,11 +70,17 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
       .map((p) => p.code!)
 
     try {
-      // Snapshot discount_total before applying so we can compare after re-render
-      pendingCheck.current = { code, discountBefore: cart.discount_total ?? 0 }
-      await applyPromotions([...existingCodes, code])
+      const updatedCart = await applyPromotions([...existingCodes, code])
+      
+      // Medusa drops the promo code silently if it is invalid for the items in the cart
+      const isApplied = updatedCart?.promotions?.some(
+        (p: any) => p.code?.toLowerCase() === code.toLowerCase()
+      )
+
+      if (!isApplied) {
+        setDroppedCode(`"${code.toUpperCase()}" is not applicable to any items in your cart.`)
+      }
     } catch (e: any) {
-      pendingCheck.current = null
       setErrorMessage(e.message)
     }
 
@@ -135,21 +136,37 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
           )}
         </form>
 
-        {ineligibleWarning && (
+        {droppedCode && (
           <div
             className="flex items-start gap-2 rounded-md border border-orange-200 bg-orange-50 px-3 py-2.5 mb-4 text-sm text-orange-800"
-            data-testid="discount-ineligible-warning"
+            data-testid="discount-dropped-warning"
           >
             <ExclamationCircleSolid className="mt-0.5 shrink-0 text-orange-500" />
-            <span className="flex-1">{ineligibleWarning}</span>
+            <span className="flex-1">{droppedCode}</span>
             <button
               type="button"
-              onClick={() => setIneligibleWarning(null)}
+              onClick={() => setDroppedCode(null)}
               className="ml-1 shrink-0 text-orange-500 hover:text-orange-700"
               aria-label="Dismiss"
             >
               <XMark />
             </button>
+          </div>
+        )}
+
+        {ineffectivePromotions.length > 0 && (
+          <div
+            className="flex flex-col gap-2 rounded-md border border-orange-200 bg-orange-50 px-3 py-2.5 mb-4 text-sm text-orange-800"
+            data-testid="discount-ineffective-warning"
+          >
+            {ineffectivePromotions.map((promotion) => (
+              <div key={promotion.id} className="flex items-start gap-2">
+                <ExclamationCircleSolid className="mt-0.5 shrink-0 text-orange-500" />
+                <span className="flex-1">
+                  "{promotion.code?.toUpperCase()}" is applied, but none of the items in your cart are eligible for this promotion.
+                </span>
+              </div>
+            ))}
           </div>
         )}
 

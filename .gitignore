@@ -80,3 +80,13 @@ appendonly.aof
 # Yarn (project uses pnpm — .yarnrc.yml and .yarn/ are not needed)
 .yarn/
 .yarnrc.yml
+
+# Separate agent service (not part of storefront/backend)
+agent-service/
+
+# Internal planning/spec docs
+superpowers/
+docs/superpowers/
+
+# Scratch scripts
+agentic-store-storefront/src/scripts/

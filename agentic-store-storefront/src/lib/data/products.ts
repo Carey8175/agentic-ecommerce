@@ -55,7 +55,6 @@ export const listProducts = async ({
 
   // Don't cache search queries — results depend on the q param
   const isSearchQuery = !!(queryParams as any)?.q
-  const cacheStrategy = isSearchQuery ? "no-store" : "force-cache"
 
   return sdk.client
     .fetch<{ products: HttpTypes.StoreProduct[]; count: number }>(
@@ -71,8 +70,7 @@ export const listProducts = async ({
           ...queryParams,
         },
         headers,
-        next: isSearchQuery ? undefined : next,
-        cache: cacheStrategy,
+        next: isSearchQuery ? { revalidate: 0 } : next,
       }
     )
     .then(({ products, count }) => {
