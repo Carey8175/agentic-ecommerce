@@ -1,6 +1,6 @@
 # Project Handover — Agentic E-Commerce Platform
-**Date:** 2026-04-20  
-**Status:** In Progress — Core storefront UI complete, review system live
+**Date:** 2026-04-22  
+**Status:** In Progress — UI redesign + review system shipped; agent service next
 
 ---
 
@@ -262,21 +262,52 @@ pnpm dev
 
 ---
 
+## Current Branch Status
+
+| Branch | Status | Description |
+|--------|--------|-------------|
+| `main` | Stable | Base Medusa install + initial setup |
+| `fix/ui-frontend` | **Pushed 2026-04-22** | UI redesign, virtual try-on UI, product reviews, promo code fixes |
+| `feat/store-agent-service` | **Active** | Store agent service — chat, semantic search, try-on wiring |
+
+---
+
+## What Was Shipped on `fix/ui-frontend` (2026-04-22)
+
+- **Storefront-wide UI redesign** — Inter font, nav polish, cart/order/product page redesigns
+- **Virtual Try-On Studio** — `/try-on` route, try-on module (item selector + image uploader), nav link, cart summary banner
+- **Product Reviews** — frontend components (`ProductReviews`, `ProductReviewStars`), backend review module with migrations, store + admin API routes, create-review workflow
+- **Cart improvements** — inline promo code in summary, ineffective-promo warning, `applyPromotions` now returns updated cart, `shipping_methods.adjustments` added to cart fields
+- **Product search cache fix** — replaced `no-store` with `revalidate: 0` to avoid Next.js warnings
+- `.gitignore` updated — `agent-service/`, `superpowers/`, `docs/superpowers/`, `src/scripts/` excluded from commits
+
+---
+
 ## Remaining / Next Steps
 
-1. **Agent Service** (`agent-service/`) — Express app with endpoints:
-   - `POST /agent/chat` — conversational product search
+### Branch: `feat/store-agent-service`
+
+1. **Agent Service** (`agent-service/`) — Express app skeleton already exists on disk (excluded from git via `.gitignore`). Needs to be committed to this branch and built out:
+   - `POST /agent/chat` — conversational shopping assistant (Claude API)
    - `POST /agent/search` — semantic product search
-   - `POST /agent/tryon` — virtual try-on image generation
+   - `POST /agent/tryon` — wire to real image generation (BytePlus Seedance or equivalent)
 
-2. **Storefront — Agent Features**
-   - Floating chat widget on all pages
-   - "Recommended for you" sections on PDP and landing page
-   - Wire Try-On Studio to real agent-service endpoint (currently uses fallback mock)
+2. **Storefront — Agent Chat Widget**
+   - Floating chat button visible on all pages
+   - Slide-in panel with conversation UI
+   - Calls `POST /agent/chat` on the agent service
 
-3. **Review Enhancements** (optional)
+3. **Storefront — Recommended Products**
+   - "Recommended for you" section on PDP and store landing page
+   - Calls `POST /agent/search` with context (viewed product, cart contents)
+
+4. **Wire Try-On to Real Endpoint**
+   - Try-On Studio currently posts to `POST /agent/tryon` on localhost:3001
+   - Agent service mock returns a placeholder image URL — replace with real generation
+
+5. **Review Enhancements** (lower priority)
    - Review moderation (approve/reject) in admin
-   - Prevent duplicate reviews per product (currently per order — customer with 2 orders for same product can review twice)
+   - Prevent duplicate reviews per product per customer
 
 ---
 
