@@ -81,9 +81,6 @@ appendonly.aof
 .yarn/
 .yarnrc.yml
 
-# Separate agent service (not part of storefront/backend)
-agent-service/
-
 # Internal planning/spec docs
 superpowers/
 docs/superpowers/
