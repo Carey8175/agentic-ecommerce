@@ -1,6 +1,6 @@
 # Project Handover — Agentic E-Commerce Platform
-**Date:** 2026-04-22  
-**Status:** In Progress — UI redesign + review system shipped; agent service next
+**Date:** 2026-04-23  
+**Status:** Agent integration shipped — agent service, agent panel UI, and agent-config admin module committed and PR'd to main
 
 ---
 
@@ -236,22 +236,18 @@ client.connect().then(() => client.query(`CREATE TABLE IF NOT EXISTS "review" ("
 
 ## Run Commands
 
-```bash
+```powershell
 # Terminal 1 — Redis (required for workflows, cart transfer, event bus)
-cd "c:/Users/Admin/Desktop/E-com Platform (Medusa)/Redis"
-./redis-server.exe ./redis.windows.conf
+cd "C:\Users\Admin\Desktop\E-com Platform (Medusa)\redis"; .\redis-server.exe .\redis.windows.conf
 
-# Terminal 2 — Backend
-cd "c:/Users/Admin/Desktop/E-com Platform (Medusa)/agentic-store"
-pnpm dev
+# Terminal 2 — Medusa Backend
+cd "C:\Users\Admin\Desktop\E-com Platform (Medusa)\agentic-store"; pnpm dev
 
-# Terminal 3 — Storefront
-cd "c:/Users/Admin/Desktop/E-com Platform (Medusa)/agentic-store-storefront"
-pnpm dev
+# Terminal 3 — Agent Service
+cd "C:\Users\Admin\Desktop\E-com Platform (Medusa)\agent-service"; pnpm dev
 
-# Terminal 4 — Agent Service (to be built)
-cd "c:/Users/Admin/Desktop/E-com Platform (Medusa)/agent-service"
-pnpm dev
+# Terminal 4 — Storefront
+cd "C:\Users\Admin\Desktop\E-com Platform (Medusa)\agentic-store-storefront"; pnpm dev
 ```
 
 **URLs:**
@@ -266,9 +262,10 @@ pnpm dev
 
 | Branch | Status | Description |
 |--------|--------|-------------|
-| `main` | Stable | Base Medusa install + initial setup |
-| `fix/ui-frontend` | **Pushed 2026-04-22** | UI redesign, virtual try-on UI, product reviews, promo code fixes |
-| `feat/store-agent-service` | **Active** | Store agent service — chat, semantic search, try-on wiring |
+| `main` | Stable | Latest merged — UI redesign, reviews, agent service |
+| `fix/ui-frontend` | Merged to main | UI redesign, virtual try-on UI, product reviews, promo code fixes |
+| `feat/store-agent-service` | Merged to main | Store agent service base |
+| `feat/agent-integration` | **PR #7 open** | Agent panel UI, agent API routes, agent-service, agent-config admin module |
 
 ---
 
@@ -283,29 +280,19 @@ pnpm dev
 
 ---
 
+## What Was Shipped on `feat/agent-integration` (2026-04-23)
+
+- **Agent Service** (`agent-service/`) — TypeScript/Express microservice committed to repo. Includes chat agent, try-on agent, Medusa tool integrations, SQLite-backed history/settings. Keys in `.env` (gitignored); `.env.example` has placeholders.
+- **Agent Panel UI** — full slide-in panel with chat, history tab, settings tab, visual studio tab, and product/cart/order/checkout cards (`modules/agent/`)
+- **Agent API routes** — storefront Next.js routes for `/api/agent/chat`, `/checkout`, `/history`, `/settings`, `/tryon`, `/bust-cache`
+- **Agent Config admin module** — backend module (`src/modules/agent-config/`) with models for AgentConfig, FAQ, KnowledgeEntry, ProductNote, VisualCategory; admin UI page + product note widget
+- **PR #7** open against `main`: https://github.com/Carey8175/agentic-ecommerce/pull/7
+
 ## Remaining / Next Steps
 
-### Branch: `feat/store-agent-service`
-
-1. **Agent Service** (`agent-service/`) — Express app skeleton already exists on disk (excluded from git via `.gitignore`). Needs to be committed to this branch and built out:
-   - `POST /agent/chat` — conversational shopping assistant (Claude API)
-   - `POST /agent/search` — semantic product search
-   - `POST /agent/tryon` — wire to real image generation (BytePlus Seedance or equivalent)
-
-2. **Storefront — Agent Chat Widget**
-   - Floating chat button visible on all pages
-   - Slide-in panel with conversation UI
-   - Calls `POST /agent/chat` on the agent service
-
-3. **Storefront — Recommended Products**
-   - "Recommended for you" section on PDP and store landing page
-   - Calls `POST /agent/search` with context (viewed product, cart contents)
-
-4. **Wire Try-On to Real Endpoint**
-   - Try-On Studio currently posts to `POST /agent/tryon` on localhost:3001
-   - Agent service mock returns a placeholder image URL — replace with real generation
-
-5. **Review Enhancements** (lower priority)
+1. **Merge PR #7** once tested
+2. **Wire Try-On to real BytePlus Seedream endpoint** — agent service `tryon-agent.ts` needs real image generation response handling
+3. **Review Enhancements** (lower priority)
    - Review moderation (approve/reject) in admin
    - Prevent duplicate reviews per product per customer
 
