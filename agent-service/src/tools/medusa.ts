@@ -20,11 +20,15 @@ async function storeReq(path: string, customerToken: string, opts: RequestInit =
 }
 
 async function adminReq(path: string, opts: RequestInit = {}): Promise<any> {
+  // Medusa v2 secret keys use Basic auth: "Basic sk_..." or base64("sk_...:")
+  const authValue = MEDUSA_API_KEY.startsWith("sk_")
+    ? `Basic ${Buffer.from(MEDUSA_API_KEY + ":").toString("base64")}`
+    : `Bearer ${MEDUSA_API_KEY}`
   const res = await fetch(`${MEDUSA_URL}${path}`, {
     ...opts,
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${MEDUSA_API_KEY}`,
+      Authorization: authValue,
       ...(opts.headers ?? {}),
     },
   })
@@ -158,6 +162,13 @@ export async function getProductDetails(product_id: string, customerToken: strin
   return data.product
 }
 
+// Look up a product from the in-memory catalog cache (fast, includes categories)
+export async function getProductFromCatalog(product_id: string, customerToken: string): Promise<any | null> {
+  const regionId = await getRegionId(customerToken)
+  const catalog = await getCatalog(customerToken, regionId)
+  return catalog.find((p: any) => p.id === product_id) ?? null
+}
+
 // ── Cart ──────────────────────────────────────────────────────────────────────
 
 export async function getCart(cartId: string, customerToken: string) {
@@ -185,27 +196,35 @@ export async function removeFromCart(cartId: string, lineItemId: string, custome
 
 // ── Orders ────────────────────────────────────────────────────────────────────
 
+export async function resolveOrderId(displayId: string, customerToken: string): Promise<string | null> {
+  const data = await storeReq("/store/orders?limit=100", customerToken)
+  const match = (data.orders ?? []).find((o: any) => String(o.display_id) === displayId)
+  return match?.id ?? null
+}
+
 export async function listOrders(customerToken: string) {
-  const data = await storeReq("/store/orders?limit=10&fields=*items,*items.variant,*items.variant.product,+fulfillments,+fulfillments.labels", customerToken)
-  return (data.orders ?? []).map((o: any) => ({
-    id: o.id,
-    display_id: o.display_id,
-    status: o.status,
-    fulfillment_status: o.fulfillment_status,
-    total: o.total,
-    currency_code: o.currency_code,
-    created_at: o.created_at,
-    items: (o.items ?? []).map((i: any) => ({
-      title: i.title,
-      quantity: i.quantity,
-      thumbnail: i.variant?.product?.thumbnail ?? i.thumbnail,
-      handle: i.variant?.product?.handle
-    })),
-    tracking_numbers: (o.fulfillments ?? [])
-      .flatMap((f: any) => f.labels ?? f.tracking_links ?? [])
-      .map((t: any) => t.tracking_number ?? t.url ?? t.tracking_url)
-      .filter(Boolean),
-  }))
+  const data = await storeReq("/store/orders?limit=100&fields=*items,*items.variant,*items.variant.product,+fulfillments,+fulfillments.labels", customerToken)
+  return (data.orders ?? [])
+    .filter((o: any) => o.status !== "canceled")
+    .map((o: any) => ({
+      id: o.id,
+      display_id: o.display_id,
+      status: o.status,
+      fulfillment_status: o.fulfillment_status,
+      total: o.total,
+      currency_code: o.currency_code,
+      created_at: o.created_at,
+      items: (o.items ?? []).map((i: any) => ({
+        title: i.title,
+        quantity: i.quantity,
+        thumbnail: i.variant?.product?.thumbnail ?? i.thumbnail,
+        handle: i.variant?.product?.handle
+      })),
+      tracking_numbers: (o.fulfillments ?? [])
+        .flatMap((f: any) => f.labels ?? f.tracking_links ?? [])
+        .map((t: any) => t.tracking_number ?? t.url ?? t.tracking_url)
+        .filter(Boolean),
+    }))
 }
 
 export async function getOrderStatus(order_id: string, customerToken: string) {
@@ -221,6 +240,7 @@ export async function getOrderStatus(order_id: string, customerToken: string) {
     fulfillment_status: o.fulfillment_status,
     total: o.total,
     currency_code: o.currency_code,
+    created_at: o.created_at,
     items: (o.items ?? []).map((i: any) => ({
       title: i.title,
       quantity: i.quantity,
@@ -243,7 +263,11 @@ export async function getLatestOrder(customerToken: string) {
 // ── Checkout ──────────────────────────────────────────────────────────────────
 
 export async function prepareCheckout(cartId: string, customerToken: string) {
-  const cart = await getCart(cartId, customerToken)
+  const data = await storeReq(
+    `/store/carts/${cartId}?fields=*items,*items.variant,*items.variant.product,+items.unit_price,+items.subtotal,+items.total,*promotions`,
+    customerToken
+  )
+  const cart = data.cart
   return {
     items: (cart.items ?? []).map((i: any) => ({
       id: i.id,
@@ -352,12 +376,164 @@ export async function getCustomerAddresses(customerToken: string) {
   return data.addresses ?? []
 }
 
+// ── Order cancellation ────────────────────────────────────────────────────────
+
+export async function cancelOrder(order_id: string, customerToken: string): Promise<{ success: boolean; message: string }> {
+  // Fetch the order to check created_at
+  const data = await storeReq(
+    `/store/orders/${order_id}?fields=id,created_at,status`,
+    customerToken
+  )
+  const order = data.order
+  if (!order) throw new Error("Order not found")
+
+  const createdAt = new Date(order.created_at).getTime()
+  const hoursSince = (Date.now() - createdAt) / (1000 * 60 * 60)
+
+  if (hoursSince > 24) {
+    return {
+      success: false,
+      message: `This order was placed ${Math.floor(hoursSince)} hours ago and can no longer be cancelled automatically. Please raise a support ticket and our team will review it.`,
+    }
+  }
+
+  if (order.status === "cancelled") {
+    return { success: false, message: "This order has already been cancelled." }
+  }
+
+  // Cancel via admin API (store API doesn't expose cancel)
+  await adminReq(`/admin/orders/${order_id}/cancel`, { method: "POST" })
+  return { success: true, message: "Your order has been successfully cancelled. A refund will be processed within 3–5 business days." }
+}
+
+// ── Promotions on cart ────────────────────────────────────────────────────────
+
+export async function applyPromotionsToCart(cartId: string, promo_codes: string[], customerToken: string): Promise<any> {
+  const data = await storeReq(`/store/carts/${cartId}/promotions`, customerToken, {
+    method: "POST",
+    body: JSON.stringify({ promo_codes }),
+  })
+  return data.cart
+}
+
+// ── Similar products ──────────────────────────────────────────────────────────
+
+export async function getSimilarProducts(product_handle: string, customerToken: string): Promise<any[]> {
+  const regionId = await getRegionId(customerToken)
+  const all = await getCatalog(customerToken, regionId)
+  const source = all.find((p: any) => p.handle === product_handle)
+  const sourceCategories = (source?.categories ?? []).map((c: any) => c.handle)
+  // Filter to same category, exclude the source product
+  const pool = all.filter((p: any) => {
+    if (p.handle === product_handle) return false
+    if (sourceCategories.length === 0) return true
+    return p.categories?.some((c: any) => sourceCategories.includes(c.handle))
+  })
+  return pool.sort(() => Math.random() - 0.5).slice(0, 6).map(shapeProduct)
+}
+
+// ── Shipping estimate ─────────────────────────────────────────────────────────
+
+export async function getShippingOptions(cart_id: string, customerToken: string): Promise<any[]> {
+  try {
+    const data = await storeReq(`/store/shipping-options?cart_id=${cart_id}`, customerToken)
+    return (data.shipping_options ?? []).map((o: any) => ({
+      id: o.id,
+      name: o.name,
+      price: o.amount,
+      currency_code: o.currency_code ?? "usd",
+      provider: o.provider_id,
+    }))
+  } catch {
+    return []
+  }
+}
+
+// ── Reorder ───────────────────────────────────────────────────────────────────
+
+export async function reorderItems(order_id: string, cart_id: string, customerToken: string): Promise<{ added: number; skipped: number; cart: any }> {
+  const data = await storeReq(
+    `/store/orders/${order_id}?fields=*items,*items.variant`,
+    customerToken
+  )
+  const items = data.order?.items ?? []
+  let added = 0
+  let skipped = 0
+  let cart: any = null
+  for (const item of items) {
+    const variant_id = item.variant_id ?? item.variant?.id
+    if (!variant_id) { skipped++; continue }
+    try {
+      const result = await storeReq(`/store/carts/${cart_id}/line-items`, customerToken, {
+        method: "POST",
+        body: JSON.stringify({ variant_id, quantity: item.quantity }),
+      })
+      cart = result.cart
+      added++
+    } catch {
+      skipped++
+    }
+  }
+  return { added, skipped, cart }
+}
+
+// ── Promotions ────────────────────────────────────────────────────────────────
+
+export async function getActivePromotions(): Promise<any[]> {
+  try {
+    const [promoData, catData] = await Promise.all([
+      adminReq("/admin/promotions?limit=50&fields=*application_method,*application_method.target_rules,*application_method.target_rules.values,*campaign,*campaign.budget,*rules"),
+      adminReq("/admin/product-categories?limit=200").catch(() => ({ product_categories: [] })),
+    ])
+    const catMap: Record<string, { name: string; handle: string }> = {}
+    for (const c of (catData.product_categories ?? [])) catMap[c.id] = { name: c.name, handle: c.handle }
+
+    const now = Date.now()
+    const active = (promoData.promotions ?? []).filter((p: any) => {
+      if (p.status && p.status !== "active") return false
+      if (p.ends_at && new Date(p.ends_at).getTime() < now) return false
+      return true
+    })
+
+    return active.map((p: any) => {
+      const method = p.application_method ?? {}
+      // Resolve target category names from target_rules
+      const targetCategories: { name: string; handle: string }[] = []
+      for (const rule of (method.target_rules ?? [])) {
+        if (rule.attribute?.includes("categories")) {
+          for (const v of (rule.values ?? [])) {
+            const cat = catMap[v.value]
+            if (cat) targetCategories.push(cat)
+          }
+        }
+      }
+      const campaign = p.campaign ?? {}
+      return {
+        code: p.code,
+        type: method.type, // "percentage" | "fixed"
+        value: method.value,
+        currency_code: method.currency_code ?? null,
+        target_type: method.target_type, // "items" | "shipping" | "order"
+        allocation: method.allocation, // "each" | "across"
+        max_quantity: method.max_quantity ?? null,
+        target_categories: targetCategories, // resolved category names
+        campaign_name: campaign.name ?? null,
+        campaign_description: campaign.description ?? null,
+        ends_at: campaign.ends_at ?? p.ends_at ?? null,
+        budget_per_customer: campaign.budget?.type === "use_by_attribute" ? campaign.budget.limit : null,
+      }
+    })
+  } catch {
+    return []
+  }
+}
+
 // ── Agent config (from Medusa admin) ─────────────────────────────────────────
 
 export async function getAgentConfig() {
   try {
     const data = await adminReq("/admin/agent-config")
-    return data.config ?? null
+    return data ?? null
   } catch {
     return null
   }

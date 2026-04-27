@@ -6,9 +6,9 @@ const router = Router()
 // List sessions for a customer (or by surface if no customer)
 router.get("/sessions", (req: Request, res: Response) => {
   const customerId = req.headers["x-customer-id"] as string
+  const surface = req.query.surface as string | undefined
   if (!customerId) {
-    // Return all floating sessions if no customer id (to let guests see their history)
-    const sessions = listSessions(null as any, 50)
+    const sessions = listSessions(null, 50, surface)
     res.json({ sessions })
     return
   }
@@ -20,38 +20,61 @@ router.get("/sessions", (req: Request, res: Response) => {
 router.get("/sessions/:id/messages", (req: Request, res: Response) => {
   const allMessages = getSessionMessages(req.params.id)
   
-  // We want to reconstruct the UI state from history.
-  // The frontend needs: role, content, products, orders, cartData, checkoutData
+  // Reconstruct UI state from raw messages.
+  // Walk sequentially: each assistant message collects all tool results that
+  // immediately follow it (before the next user or assistant message).
   const reconstructed: any[] = []
-  
-  for (const m of allMessages) {
+
+  for (let i = 0; i < allMessages.length; i++) {
+    const m = allMessages[i]
+
     if (m.role === "user") {
       reconstructed.push({ id: m.id, role: "user", content: m.content })
-    } else if (m.role === "assistant" && m.content) {
-      // Create a base assistant message
+      continue
+    }
+
+    if (m.role === "assistant" && m.content) {
       const assistantMsg: any = { id: m.id, role: "assistant", content: m.content }
-      
-      // Look ahead for the tool response that matches this assistant's turn
-      // Since tools run right after the assistant, we scan the next few messages
-      const toolIdx = allMessages.findIndex(t => t.role === "tool" && t.created_at >= m.created_at && t.created_at <= m.created_at + 10)
-      if (toolIdx !== -1) {
-        const toolMsg = allMessages[toolIdx]
+
+      // Prefer ui_data if persisted (new path)
+      if ((m as any).ui_data) {
         try {
-          const data = JSON.parse(toolMsg.content)
-          if (toolMsg.tool_name === "search_products") {
-            assistantMsg.products = Array.isArray(data) ? data : undefined
-          } else if (toolMsg.tool_name === "list_orders") {
-            assistantMsg.orders = Array.isArray(data) ? data : undefined
-          } else if (toolMsg.tool_name === "view_cart") {
-            assistantMsg.cartData = data
-          } else if (toolMsg.tool_name === "prepare_checkout") {
-            assistantMsg.checkoutData = data
-          } else if (toolMsg.tool_name === "complete_checkout") {
-            assistantMsg.confirmedOrder = data.order
-          }
-        } catch { /* empty */ }
+          const ui = JSON.parse((m as any).ui_data)
+          if (ui.products) assistantMsg.products = ui.products
+          if (ui.orders) assistantMsg.orders = ui.orders
+          if (ui.cartData) assistantMsg.cartData = ui.cartData
+          if (ui.checkoutData) assistantMsg.checkoutData = ui.checkoutData
+          if (ui.promotions) assistantMsg.promotions = ui.promotions
+          if (ui.cancelData) assistantMsg.cancelData = ui.cancelData
+          if (ui.ticketData) assistantMsg.ticketData = ui.ticketData
+          if (ui.uiAction) assistantMsg.uiAction = ui.uiAction
+        } catch { /* skip malformed */ }
+      } else {
+        // Legacy: reconstruct from tool messages following this assistant turn
+        let j = i + 1
+        while (j < allMessages.length && allMessages[j].role === "tool") {
+          const toolMsg = allMessages[j]
+          try {
+            const data = JSON.parse(toolMsg.content)
+            if (toolMsg.tool_name === "search_products" || toolMsg.tool_name === "get_similar_products") {
+              assistantMsg.products = Array.isArray(data) ? data : undefined
+            } else if (toolMsg.tool_name === "get_product_details") {
+              assistantMsg.products = data ? [data] : undefined
+            } else if (toolMsg.tool_name === "list_orders" || toolMsg.tool_name === "get_order_status") {
+              assistantMsg.orders = Array.isArray(data) ? data : [data]
+            } else if (toolMsg.tool_name === "view_cart" || toolMsg.tool_name === "reorder") {
+              assistantMsg.cartData = data?.cart ?? data
+            } else if (toolMsg.tool_name === "prepare_checkout") {
+              assistantMsg.checkoutData = data
+            } else if (toolMsg.tool_name === "get_promotions") {
+              assistantMsg.promotions = Array.isArray(data) ? data : undefined
+            }
+          } catch { /* skip malformed */ }
+          j++
+        }
+        i = j - 1
       }
-      
+
       reconstructed.push(assistantMsg)
     }
   }

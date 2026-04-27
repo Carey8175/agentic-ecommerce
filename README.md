@@ -1,94 +1,194 @@
-# Agentic E-Commerce Platform — Byteshop
+# Byteshop — Agentic E-Commerce Platform
 
-A modern, AI-powered e-commerce platform built on **Medusa v2** and **Next.js 15**, branded as **Byteshop**. Features a fully custom storefront UI, product review system, virtual try-on studio, order tracking, and a customised Medusa admin dashboard — with an agentic layer in progress for intelligent product discovery and conversational shopping.
-
----
-
-## Storefront
-
-### Store / Landing Page
-![Store Page](docs/images/landing_page.png)
-
-### Shop
-![Shop Page](docs/images/shop_page.png)
-
-### Product Detail
-![Product Page](docs/images/product_page.png)
-
-### Checkout
-![Checkout Page](docs/images/checkout_page.png)
-
-### Order Tracking
-![Order Tracking](docs/images/order_tracking_page.png)
-
-### Virtual Try-On Studio
-![Try-On Studio](docs/images/try-on_Page.png)
+An AI-powered e-commerce platform built on Medusa v2 with a custom agent service for conversational shopping, virtual try-on, and intelligent customer support.
 
 ---
 
-## Admin Dashboard
+## Prerequisites
 
-### Overview
-![Admin Dashboard](docs/images/admin_dashboard.png)
+- Node.js 22+
+- pnpm (`npm install -g pnpm`)
+- PostgreSQL (running locally)
+- Redis (bundled in `redis/` folder for Windows)
 
-### Product Management
-![Admin Product Page](docs/images/admin_product_page.png)
+---
 
-### Inventory & Fulfillment Tracking
-![Admin Inventory Tracking](docs/images/admin_inventory_tracking.png)
+## Project Structure
 
-### Promotion Creation
-![Admin Promo Creation](docs/images/admin_promo_creation.png)
+```
+E-com Platform (Medusa)/
+├── agentic-store/             # Medusa v2 backend + admin
+├── agentic-store-storefront/  # Next.js 15 storefront
+├── agent-service/             # TypeScript/Express AI agent microservice
+├── redis/                     # Redis binaries (Windows)
+├── agent.db                   # SQLite DB (gitignored, auto-created)
+├── README.md                  # This file
+└── HANDOVER.md                # Full technical handover document
+```
 
-### Review Management
-![Admin Review Management](docs/images/admin_review_management.png)
+---
+
+## Setup
+
+### 1. Install dependencies
+
+```powershell
+cd agentic-store
+pnpm install
+
+cd ../agentic-store-storefront
+pnpm install
+
+cd ../agent-service
+pnpm install
+```
+
+### 2. Environment files
+
+**`agentic-store/.env`**
+```env
+DATABASE_URL=postgres://postgres:password@localhost:5432/byteshop
+REDIS_URL=redis://localhost:6379
+JWT_SECRET=your-jwt-secret
+COOKIE_SECRET=your-cookie-secret
+STORE_CORS=http://localhost:8000
+ADMIN_CORS=http://localhost:9001
+AUTH_CORS=http://localhost:9001,http://localhost:8000
+```
+
+**`agent-service/.env`**
+```env
+ARK_API_KEY=your-byteplus-ark-api-key
+BYTEPLUS_BASE_URL=https://ark.ap-southeast.bytepluses.com/api/v3
+BYTEPLUS_VLM_MODEL=ep-xxxxxxxxxxxxxxxx-xxxxx
+BYTEPLUS_SEEDREAM_MODEL=ep-xxxxxxxxxxxxxxxx-xxxxx
+MEDUSA_URL=http://localhost:9001
+MEDUSA_PUBLISHABLE_KEY=pk_xxxxxxxxxxxx
+MEDUSA_API_KEY=sk_xxxxxxxxxxxx
+AGENT_SERVICE_URL=http://localhost:3001
+PORT=3001
+```
+
+**`agentic-store-storefront/.env.local`**
+```env
+NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY=pk_xxxxxxxxxxxx
+NEXT_PUBLIC_BASE_URL=http://localhost:8000
+MEDUSA_BACKEND_URL=http://localhost:9001
+AGENT_SERVICE_URL=http://localhost:3001
+```
+
+### 3. Set up the database
+
+```powershell
+cd agentic-store
+npx medusa db:create
+npx medusa db:migrate
+npx medusa exec ./src/scripts/seed.ts   # optional seed data
+```
+
+### 4. Create the Medusa secret API key (for agent service)
+
+```powershell
+cd agentic-store
+npx medusa exec ./src/scripts/create-api-key.ts
+# Copy the printed sk_... into agent-service/.env as MEDUSA_API_KEY
+```
+
+### 5. Get the Publishable Key
+
+Go to http://localhost:9001/app → Settings → API Keys → copy the `pk_...` value.
+Set it in both `agent-service/.env` and `agentic-store-storefront/.env.local`.
+
+---
+
+## Running the Platform
+
+Start in this exact order — each service must be ready before starting the next.
+
+```powershell
+# Terminal 1 — Redis
+cd redis
+.\redis-server.exe .\redis.windows.conf
+
+# Terminal 2 — Medusa backend (wait for "Server is ready on port: 9001")
+cd agentic-store
+pnpm dev
+
+# Terminal 3 — Agent service
+cd agent-service
+pnpm dev
+
+# Terminal 4 — Storefront
+cd agentic-store-storefront
+pnpm dev
+```
+
+| Service | URL |
+|---------|-----|
+| Storefront | http://localhost:8000 |
+| Admin dashboard | http://localhost:9001/app |
+| Medusa API | http://localhost:9001 |
+| Agent service | http://localhost:3001 |
+| Agent health check | http://localhost:3001/health |
+
+**Default admin credentials:** `admin@example.com` / `yourpassword`
 
 ---
 
 ## Features
 
-### Storefront
-- Custom Byteshop theme — Inter font, indigo accent, dark hero banner
-- Product grid with chip filter bar, sort dropdown, and paginated browsing
-- Product detail page: image gallery, star rating, variant selector, quantity stepper, low-stock warning, Add to Cart + Buy Now
-- Cart page: full redesign with item stepper, line totals, promo code input with validation warnings
-- Checkout with discount code support and ineligible promotion detection
-- Order details: status badges, payment status, fulfillment tracking number with clickable link
+### AI Shopping Agent
+- Natural language product search and recommendations
+- Cart management (add, remove, view)
+- Order tracking with tracking numbers
+- Checkout — one-click (in-chat) or redirect to full checkout page
+- Auto-applies active promo codes at checkout
+- Reorder past orders
+- Similar product suggestions
 
-### Account & Orders
-- Customer login, registration, profile management, address book
-- Order history with per-order detail view
-- Tracking number displayed on order detail page (pulled from fulfillment labels)
-- Custom password change endpoint (fixes Medusa's broken built-in route)
+### Virtual Try-On
+- Upload a personal photo and/or room photo in Account → Try-On & Personalization
+- Ask the agent to try on any apparel or furniture product
+- AI checks product applicability before queuing (skips food, software, gift cards, etc.)
+- Generates a before/after comparison image using BytePlus Seedream 4.5
+- Results saved per-customer in `agent-service/src/uploads/<customerId>/`
+- Results auto-deleted after 24 hours
+- View full-size comparison at `/try-on/[jobId]`
+- Agent notifies you in chat when generation is complete with a direct "View Try-On Result →" button
 
-### Review System
-- Customers can leave star ratings + written reviews on purchased products
-- Eligibility check: must have a completed order containing the product
-- Duplicate prevention per customer per product per order
-- Average rating displayed on product cards and detail pages
+### Customer Support
+- AI handles: cancellations (within 24h window), returns, refunds, damaged/missing items
+- Escalates to human support via ticket system when needed
+- Customer can view and reply to tickets at `/customer-service`
+- Admin manages tickets at `/app/support-tickets` (reply, status, delete)
 
-### Virtual Try-On Studio (`/try-on`)
-- 3-step flow: Select item from cart → Upload photo → Generate try-on
-- Before/after draggable comparison slider
-- Scan overlay animation
-- Wired to `/agent/tryon` endpoint (mock fallback included)
+### Admin Panel (`/app`)
+- **Agent Config** — name, tone, custom system prompt, FAQs, knowledge base
+- **Support Tickets** — full thread management with delete
+- **Reviews** — view and delete product reviews
 
-### Admin Dashboard Customisations
-- **Review management** — dedicated admin page to browse, filter by product, and delete customer reviews with star display
-- **Inventory widget** — auto-reloads after stock updates via MutationObserver on success toast
-- **Fulfillment tracking** — add tracking numbers and shipping labels directly from the order page; visible to customers immediately
-- **Promotion creation** — create discount codes with eligibility rules; storefront warns customers when a code applies but no cart items qualify
+---
 
-### More Features Not Pictured
-- **Promo code warnings** — banner when a discount code is applied but no eligible items are in the cart
-- **"NEW" Try-On badge** in the nav
-- **Related products** ("Curated For You") section on each product page
-- **Breadcrumbs** across store, product, and cart pages
-- **Secure checkout note** + SSL indicator in cart summary
-- **Try-On dark banner** in cart sidebar
-- **Free delivery + returns perks panel** on product pages
-- **Star rating on product preview cards** with "No reviews yet" fallback
-- **500+ products** pre-seeded with images, inventory, and shipping profiles
+## SQLite Database (Agent Service)
+
+The agent service uses its own SQLite database (`agent.db`) separate from Medusa's PostgreSQL.
+It is auto-created on first startup — no migration commands needed.
+
+```sql
+-- Core tables
+sessions          -- chat sessions per customer
+messages          -- LLM messages + ui_data JSON (card payloads for history)
+customer_settings -- one_click_checkout_enabled, history_window
+
+-- Support system
+support_tickets   -- id, customer_id, order_id, type, status, subject
+ticket_messages   -- id, ticket_id, sender_role (customer|admin), content
+
+-- Try-on
+tryon_jobs        -- id, customer_id, status (pending|done|error), product JSON, image_url
+```
+
+See `HANDOVER.md` for the full schema DDL.
 
 ---
 
@@ -96,63 +196,18 @@ A modern, AI-powered e-commerce platform built on **Medusa v2** and **Next.js 15
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | Medusa v2 (Node.js) |
-| Storefront | Next.js 15, React 19, Tailwind CSS |
-| Database | PostgreSQL 17 |
-| Cache / Pub-Sub | Redis |
-| UI Components | Medusa UI, Radix UI |
-| Auth | Medusa JWT (httpOnly cookie) |
-| Agent Service | Express.js (in progress) |
+| Backend | Medusa v2, Node.js, PostgreSQL, Redis |
+| Storefront | Next.js 15, App Router, Tailwind CSS |
+| Agent service | TypeScript, Express, SQLite (node:sqlite) |
+| AI | BytePlus Ark API (OpenAI-compatible), VLM + Seedream 4.5 |
+| Admin | Medusa Admin (Vite SPA) |
 
 ---
 
-## Directory Structure
+## Notes
 
-```
-.
-├── agentic-store/              # Medusa v2 backend
-│   ├── src/modules/review/     # Custom review module
-│   ├── src/workflows/          # Create-review workflow
-│   └── src/api/                # Store + admin API routes
-├── agentic-store-storefront/   # Next.js storefront
-│   └── src/modules/            # Cart, checkout, orders, products, try-on
-├── agent-service/              # Express agent service (in progress)
-├── docs/                       # Specs, design docs, screenshots
-├── database_dump.sql           # Ready-to-restore DB (500+ products)
-├── SETUP.md                    # Installation guide
-└── HANDOVER.md                 # Full project history and session notes
-```
-
----
-
-## Getting Started
-
-See **[SETUP.md](SETUP.md)** for full installation instructions including:
-- PostgreSQL + Redis setup
-- Restoring from `database_dump.sql`
-- Environment variable configuration
-- MCP server setup for AI assistants
-
-```bash
-# Terminal 1 — Redis
-cd Redis && ./redis-server.exe ./redis.windows.conf
-
-# Terminal 2 — Backend
-cd agentic-store && pnpm dev
-
-# Terminal 3 — Storefront
-cd agentic-store-storefront && pnpm dev
-```
-
-| Service | URL |
-|---------|-----|
-| Storefront | http://localhost:8000 |
-| Backend API | http://localhost:9001 |
-| Admin Dashboard | http://localhost:9001/app |
-| Agent Service | http://localhost:3001 |
-
----
-
-## AI / MCP Note
-
-This repository uses the **Medusa MCP Server** for real-time documentation access. AI assistants working on this project should connect to `@medusajs/mcp-server` — do not paste static Medusa docs into the repo. See `SETUP.md` for configuration.
+- Use `pnpm` exclusively — do not mix with `npm install`
+- `agent.db` is gitignored and auto-created on first agent service start
+- Profile photos and try-on results are stored in `agent-service/src/uploads/` (gitignored)
+- Try-on results are automatically cleaned up after 24 hours
+- See `HANDOVER.md` for full architecture, known issues, and complete session history

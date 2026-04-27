@@ -53,11 +53,11 @@ const OrderDetails = ({ order, showStatus }: OrderDetailsProps) => {
         {showStatus && (
           <>
             <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full border border-gray-200">
-              <div className={`w-2 h-2 rounded-full ${order.fulfillment_status === "fulfilled" ? "bg-emerald-500" : "bg-blue-500"}`} />
+              <div className={`w-2 h-2 rounded-full ${order.status === "canceled" ? "bg-red-500" : order.fulfillment_status === "fulfilled" ? "bg-emerald-500" : "bg-blue-500"}`} />
               <Text className="text-gray-900 font-medium text-xs">
                 Order status:{" "}
                 <span className="text-gray-600 font-normal" data-testid="order-status">
-                  {formatStatus(order.fulfillment_status || order.status || "Pending")}
+                  {formatStatus(order.status === "canceled" ? "canceled" : order.fulfillment_status || order.status || "Pending")}
                 </span>
               </Text>
             </div>

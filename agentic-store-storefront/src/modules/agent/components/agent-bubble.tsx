@@ -1,12 +1,18 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import AgentPanel from "./agent-panel"
 
 type Props = { cartId?: string | null }
 
 export default function AgentBubble({ cartId }: Props) {
   const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    const handleOpen = () => setOpen(true)
+    window.addEventListener("agent_open_and_send", handleOpen)
+    return () => window.removeEventListener("agent_open_and_send", handleOpen)
+  }, [])
 
   return (
     <>

@@ -214,7 +214,7 @@ export default function VisualStudioTab({ cartId, preselectedProductId }: Props)
                     <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
                     Generating...
                   </>
-                ) : "✨ Generate"}
+                ) : "Generate"}
               </button>
               <button onClick={() => setStep(2)} className="text-xs text-white/30 hover:text-white/50">← Back</button>
             </div>

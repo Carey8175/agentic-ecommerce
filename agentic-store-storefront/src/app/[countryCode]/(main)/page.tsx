@@ -2,7 +2,7 @@ import { Metadata } from "next"
 
 import FeaturedProducts from "@modules/home/components/featured-products"
 import RandomProducts from "@modules/home/components/random-products"
-import HeroChat from "@modules/ai-chat/components/hero-chat"
+import HeroSection from "@modules/agent/components/hero-section"
 import { listCollections } from "@lib/data/collections"
 import { getRegion } from "@lib/data/regions"
 
@@ -30,7 +30,7 @@ export default async function Home(props: {
 
   return (
     <>
-      <HeroChat />
+      <HeroSection />
       <div className="py-12">
         <ul className="flex flex-col gap-x-6">
           <RandomProducts region={region} countryCode={countryCode} />

@@ -8,8 +8,8 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const [configs, faqs, knowledge_base, visual_categories] = await Promise.all([
     svc.listAgentConfigs({}, { take: 1 }),
     svc.listFaqs({}, { order: { order: "ASC" } }),
-    svc.listKnowledgeEntrys({}),
-    svc.listVisualCategorys({}),
+    svc.listKnowledgeEntries({}),
+    svc.listVisualCategories({}),
   ])
 
   res.json({
@@ -47,23 +47,23 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 
   // Replace knowledge entries if provided
   if (Array.isArray(knowledge_base)) {
-    const existing = await svc.listKnowledgeEntrys({})
+    const existing = await svc.listKnowledgeEntries({})
     if (existing.length) {
-      await svc.deleteKnowledgeEntrys(existing.map((k: any) => k.id))
+      await svc.deleteKnowledgeEntries(existing.map((k: any) => k.id))
     }
     if (knowledge_base.length) {
-      await svc.createKnowledgeEntrys(knowledge_base)
+      await svc.createKnowledgeEntries(knowledge_base)
     }
   }
 
   // Replace visual categories if provided
   if (Array.isArray(visual_categories)) {
-    const existing = await svc.listVisualCategorys({})
+    const existing = await svc.listVisualCategories({})
     if (existing.length) {
-      await svc.deleteVisualCategorys(existing.map((v: any) => v.id))
+      await svc.deleteVisualCategories(existing.map((v: any) => v.id))
     }
     if (visual_categories.length) {
-      await svc.createVisualCategorys(visual_categories)
+      await svc.createVisualCategories(visual_categories)
     }
   }
 

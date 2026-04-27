@@ -23,10 +23,24 @@ const OrderCard = ({ order }: OrderCardProps) => {
     return order.items?.length ?? 0
   }, [order])
 
+  const getStatusBadge = () => {
+    if (order.status === "canceled") {
+      return <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-medium normal-case">Canceled</span>
+    }
+    if (order.fulfillment_status === "fulfilled" || order.fulfillment_status === "shipped") {
+      return <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-medium normal-case">Fulfilled</span>
+    }
+    if (order.fulfillment_status === "partially_fulfilled") {
+      return <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded font-medium normal-case">Partially Fulfilled</span>
+    }
+    return <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded font-medium normal-case">Pending</span>
+  }
+
   return (
     <div className="bg-white flex flex-col" data-testid="order-card">
-      <div className="uppercase text-large-semi mb-1">
-        #<span data-testid="order-display-id">{order.display_id}</span>
+      <div className="uppercase text-large-semi mb-1 flex items-center justify-between">
+        <div>#<span data-testid="order-display-id">{order.display_id}</span></div>
+        {getStatusBadge()}
       </div>
       <div className="flex items-center divide-x divide-gray-200 text-small-regular text-ui-fg-base">
         <span className="pr-2" data-testid="order-created-at">

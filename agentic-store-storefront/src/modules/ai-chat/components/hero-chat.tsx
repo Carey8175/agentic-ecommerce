@@ -1,13 +1,14 @@
 "use client"
 
-import { useDummyChat } from "../hooks/use-dummy-chat"
+import { useAgentChat } from "../hooks/use-agent-chat"
 import ChatMessages from "./chat-messages"
 import ChatInput from "./chat-input"
 import PromptChips from "./prompt-chips"
 
 export default function HeroChat() {
-  const { messages, input, setInput, send } = useDummyChat(
-    "Hi there! I'm your AI shopping assistant. How can I help you today?"
+  const { messages, input, setInput, send } = useAgentChat(
+    "Hi there! I'm your AI shopping assistant. How can I help you today?",
+    "hero"
   )
 
   return (

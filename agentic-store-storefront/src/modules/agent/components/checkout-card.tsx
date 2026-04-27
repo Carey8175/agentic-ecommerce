@@ -15,17 +15,19 @@ type CheckoutCardProps = {
     shipping_address?: { address_1?: string; city?: string; country_code?: string } | null
     payment_method: string
     one_click_enabled?: boolean
+    applied_promos?: string[]
   }
   cartId: string | null
   onSuccess: (order: { id: string; display_id: string; total: number; currency_code: string; item_count: number }) => void
   onDismiss?: () => void
+  isLight?: boolean
 }
 
-export default function CheckoutCard({ data, cartId, onSuccess, onDismiss }: CheckoutCardProps) {
+export default function CheckoutCard({ data, cartId, onSuccess, onDismiss, isLight }: CheckoutCardProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
-  const isActiveCart = cartId === (data as any).id
+  const isActiveCart = !!cartId
 
   const { currency_code } = data
   const freeShipping = !data.shipping_total || data.shipping_total === 0
@@ -48,6 +50,7 @@ export default function CheckoutCard({ data, cartId, onSuccess, onDismiss }: Che
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? "Checkout failed")
+      fetch("/api/agent/bust-cache", { method: "POST" }).catch(() => {})
       onSuccess(json.order)
     } catch (err: any) {
       setError(err.message)
@@ -60,41 +63,57 @@ export default function CheckoutCard({ data, cartId, onSuccess, onDismiss }: Che
     }
   }
 
+  const bgClass = isLight ? "bg-white border-gray-200" : "bg-[#11131a] border-white/10"
+  const titleClass = isLight ? "text-gray-900" : "text-white/90"
+  const itemTitle = isLight ? "text-gray-600" : "text-white/70"
+  const itemTotal = isLight ? "text-gray-900" : "text-white/90"
+  const borderClass = isLight ? "border-gray-100" : "border-white/10"
+  const labelClass = isLight ? "text-gray-500" : "text-white/50"
+  const metaClass = isLight ? "text-gray-400" : "text-white/40"
+  const btnBg = isLight ? "bg-gray-900 text-white hover:bg-gray-800" : "bg-white text-black hover:bg-gray-200"
+
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm space-y-3 w-full max-w-xs">
+    <div className={`border rounded-2xl p-4 shadow-sm space-y-3 w-full max-w-xs ${bgClass}`}>
       <div className="flex items-center justify-between">
-        <p className="text-xs font-bold text-gray-900 uppercase tracking-wide">Your Order</p>
+        <p className={`text-xs font-bold uppercase tracking-wide ${titleClass}`}>Your Order</p>
         {onDismiss && (
-          <button onClick={onDismiss} className="text-[10px] text-gray-400 hover:text-gray-600 transition-colors">
+          <button onClick={onDismiss} className={`text-[10px] hover:text-gray-600 transition-colors ${metaClass}`}>
             Dismiss ✕
           </button>
         )}
       </div>
       <div className="space-y-1.5">
         {data.items.map((item, i) => (
-          <div key={i} className="flex justify-between text-xs text-gray-600">
+          <div key={i} className={`flex justify-between text-xs ${itemTitle}`}>
             <span className="truncate max-w-[140px]">{item.title} × {item.quantity}</span>
-            <span className="font-medium text-gray-900">{convertToLocale({ amount: item.total, currency_code })}</span>
+            <span className={`font-medium ${itemTotal}`}>{convertToLocale({ amount: item.total, currency_code })}</span>
           </div>
         ))}
       </div>
-      <div className="border-t border-gray-100 pt-2 space-y-1">
+      <div className={`border-t pt-2 space-y-1 ${borderClass}`}>
+        {data.applied_promos && data.applied_promos.length > 0 && (
+          <div className="flex items-center gap-1.5 text-xs text-emerald-500">
+            <span>🏷️</span>
+            <span className="font-mono font-semibold">{data.applied_promos.join(", ")}</span>
+            <span>applied</span>
+          </div>
+        )}
         {!!data.discount_total && (
-          <div className="flex justify-between text-xs text-emerald-600">
+          <div className="flex justify-between text-xs text-emerald-500">
             <span>Discount</span>
             <span>− {convertToLocale({ amount: data.discount_total, currency_code })}</span>
           </div>
         )}
-        <div className="flex justify-between text-xs text-gray-500">
+        <div className={`flex justify-between text-xs ${labelClass}`}>
           <span>Shipping</span>
-          <span className={freeShipping ? "text-emerald-600" : ""}>{freeShipping ? "Free" : convertToLocale({ amount: data.shipping_total, currency_code })}</span>
+          <span className={freeShipping ? "text-emerald-500" : ""}>{freeShipping ? "Free" : convertToLocale({ amount: data.shipping_total, currency_code })}</span>
         </div>
-        <div className="flex justify-between text-sm font-bold text-gray-900 pt-1">
+        <div className={`flex justify-between text-sm font-bold pt-1 ${titleClass}`}>
           <span>Total</span>
           <span>{convertToLocale({ amount: data.total, currency_code })}</span>
         </div>
       </div>
-      <div className="text-[10px] text-gray-400 space-y-0.5">
+      <div className={`text-[10px] space-y-0.5 ${metaClass}`}>
         <p>{address}</p>
         <p>{data.payment_method}</p>
       </div>
@@ -107,14 +126,18 @@ export default function CheckoutCard({ data, cartId, onSuccess, onDismiss }: Che
         </p>
       )}
       {!isActiveCart ? (
-        <p className="text-xs text-gray-500 text-center py-1">This checkout summary is no longer active.</p>
+        <p className={`text-xs text-center py-1 ${labelClass}`}>This checkout summary is no longer active.</p>
+      ) : data.one_click_enabled === false ? (
+        <LocalizedClientLink href="/checkout?step=address" className={`w-full py-2.5 rounded-full text-xs font-bold transition-colors flex items-center justify-center gap-2 ${btnBg}`}>
+          Go to Checkout →
+        </LocalizedClientLink>
       ) : (
         <button
           onClick={placeOrder}
           disabled={loading}
-          className="w-full py-2.5 rounded-full bg-gray-900 text-white text-xs font-bold hover:bg-gray-800 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+          className={`w-full py-2.5 rounded-full text-xs font-bold transition-colors disabled:opacity-60 flex items-center justify-center gap-2 ${btnBg}`}
         >
-          {loading && <span className="animate-spin inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full" />}
+          {loading && <span className="animate-spin inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full" />}
           {loading ? "Placing order..." : "Place Order →"}
         </button>
       )}

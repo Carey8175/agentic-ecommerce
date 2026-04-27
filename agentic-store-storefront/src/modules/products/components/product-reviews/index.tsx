@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState, useTransition } from "react"
+import { useState, useTransition } from "react"
+import useSWR from "swr"
 import { HttpTypes } from "@medusajs/types"
 
 type Review = {
@@ -93,11 +94,10 @@ function ReviewCard({ review }: { review: Review }) {
 type WriteFormProps = {
   productId: string
   customer: HttpTypes.StoreCustomer | null
-  orders: HttpTypes.StoreOrder[]
   onSubmitted: () => void
 }
 
-function WriteReviewForm({ productId, customer, orders, onSubmitted }: WriteFormProps) {
+function WriteReviewForm({ productId, customer, onSubmitted }: WriteFormProps) {
   const [rating, setRating] = useState(0)
   const [title, setTitle] = useState("")
   const [body, setBody] = useState("")
@@ -105,6 +105,14 @@ function WriteReviewForm({ productId, customer, orders, onSubmitted }: WriteForm
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
   const [isPending, startTransition] = useTransition()
+
+  // Fetch orders lazily only when customer is logged in
+  const { data: ordersData } = useSWR<{ orders: HttpTypes.StoreOrder[] }>(
+    customer ? "/api/orders" : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 300000 }
+  )
+  const orders = ordersData?.orders ?? []
 
   // Eligible orders: contain this product
   const eligibleOrders = orders.filter((o) =>
@@ -261,26 +269,19 @@ function WriteReviewForm({ productId, customer, orders, onSubmitted }: WriteForm
 type Props = {
   product: HttpTypes.StoreProduct
   customer: HttpTypes.StoreCustomer | null
-  orders: HttpTypes.StoreOrder[]
 }
 
 const INITIAL_SHOW = 3
 
-export default function ProductReviews({ product, customer, orders }: Props) {
-  const [data, setData] = useState<ReviewsData | null>(null)
+const fetcher = (url: string) => fetch(url).then(r => r.json())
+
+export default function ProductReviews({ product, customer }: Props) {
+  const { data, mutate } = useSWR<ReviewsData>(
+    `/api/reviews?product_id=${product.id}`,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 60000 }
+  )
   const [showAll, setShowAll] = useState(false)
-
-  async function load() {
-    try {
-      const res = await fetch(`/api/reviews?product_id=${product.id}`, { cache: "no-store" })
-      const d = await res.json()
-      if (Array.isArray(d.reviews)) {
-        setData(d)
-      }
-    } catch {}
-  }
-
-  useEffect(() => { load() }, [product.id])
 
   const reviews = data?.reviews ?? []
   const displayed = showAll ? reviews : reviews.slice(0, INITIAL_SHOW)
@@ -333,8 +334,7 @@ export default function ProductReviews({ product, customer, orders }: Props) {
         <WriteReviewForm
           productId={product.id}
           customer={customer}
-          orders={orders}
-          onSubmitted={load}
+          onSubmitted={() => mutate()}
         />
       </div>
     </div>
