@@ -1,0 +1,8 @@
+node_modules
+dist
+.env
+.env.*
+agent.db
+agent.db-shm
+agent.db-wal
+src/uploads
