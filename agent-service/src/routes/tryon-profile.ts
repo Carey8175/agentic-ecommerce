@@ -65,7 +65,7 @@ router.post("/", upload.single("image"), async (req: Request, res: Response) => 
     return
   }
 
-  const { customer } = await customerRes.json()
+  const { customer } = await customerRes.json() as any
   const existingProfile = customer?.metadata?.tryon_personalization ?? {}
   const existingImages = existingProfile.images ?? {}
 
@@ -136,7 +136,7 @@ router.delete("/:type", async (req: Request, res: Response) => {
     return
   }
 
-  const { customer } = await customerRes.json()
+  const { customer } = await customerRes.json() as any
   const existingProfile = customer?.metadata?.tryon_personalization ?? {}
   const existingImages = { ...(existingProfile.images ?? {}) }
 
