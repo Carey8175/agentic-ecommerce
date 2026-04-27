@@ -65,22 +65,31 @@ export default function SupportTicketsPanel() {
   const [loading, setLoading] = useState(true)
   const [threadLoading, setThreadLoading] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
-  const fetchTickets = () => {
+  const fetchTickets = (autoSelectId?: string) => {
     fetch("/api/agent/tickets")
       .then(r => r.json())
-      .then(d => setTickets(d.tickets ?? []))
+      .then(d => {
+        setTickets(d.tickets ?? [])
+        // Auto-select ticket if requested (from View My Requests button)
+        const id = autoSelectId ?? (() => {
+          try { return sessionStorage.getItem("_open_ticket_id") } catch { return null }
+        })()
+        if (id) {
+          setSelectedId(id)
+          try { sessionStorage.removeItem("_open_ticket_id") } catch {}
+          setTimeout(() => panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100)
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }
 
   useEffect(() => {
     fetchTickets()
-
-    window.addEventListener("ticket_created", fetchTickets)
-    return () => {
-      window.removeEventListener("ticket_created", fetchTickets)
-    }
+    window.addEventListener("ticket_created", () => fetchTickets())
+    return () => window.removeEventListener("ticket_created", () => fetchTickets())
   }, [])
 
   useEffect(() => {
@@ -119,7 +128,7 @@ export default function SupportTicketsPanel() {
   }
 
   return (
-    <div className="flex w-full h-full gap-4">
+    <div ref={panelRef} className="flex w-full h-full gap-4">
       {/* Ticket list */}
       <div className="w-72 flex-shrink-0 flex flex-col bg-white shadow-sm rounded-2xl border border-gray-200 overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-200 flex-shrink-0">

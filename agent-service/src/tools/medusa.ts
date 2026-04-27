@@ -196,6 +196,12 @@ export async function removeFromCart(cartId: string, lineItemId: string, custome
 
 // ── Orders ────────────────────────────────────────────────────────────────────
 
+export async function resolveOrderId(displayId: string, customerToken: string): Promise<string | null> {
+  const data = await storeReq("/store/orders?limit=100", customerToken)
+  const match = (data.orders ?? []).find((o: any) => String(o.display_id) === displayId)
+  return match?.id ?? null
+}
+
 export async function listOrders(customerToken: string) {
   const data = await storeReq("/store/orders?limit=100&fields=*items,*items.variant,*items.variant.product,+fulfillments,+fulfillments.labels", customerToken)
   return (data.orders ?? [])

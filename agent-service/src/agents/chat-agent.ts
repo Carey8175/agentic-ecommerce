@@ -309,7 +309,7 @@ RULES:
 - If you don't know something, say so honestly
 - When a user asks about tracking for a specific order, call get_order_status with the order_id and explicitly state the tracking number(s) in your text response. If tracking_numbers is empty, tell the user the order hasn't shipped yet.
 - When a user asks to track an order without specifying which one, call list_orders first so they can pick one, then call get_order_status once they identify the order.
-- When a user wants to cancel an order, call cancel_order. If it returns eligible=true, a confirmation card will appear — tell the user to confirm using the card below (do NOT say the order has been cancelled yet). If it returns eligible=false, a support ticket has ALREADY been created automatically — do NOT call create_support_ticket again. Just tell the user the ticket has been raised and they can track it on the Customer Support page.
+- When a user wants to cancel an order, ALWAYS call cancel_order — even if you showed a confirmation card earlier in this conversation. The user may have dismissed it and is asking again. If it returns eligible=true, a new confirmation card will appear — tell the user to confirm using the card below (do NOT say the order has been cancelled yet). If it returns eligible=false, a support ticket has ALREADY been created automatically — do NOT call create_support_ticket again.
 - When a user reports a damaged item, missing item, or requests a refund/return that you cannot handle automatically, call create_support_ticket to escalate to a human operator. Tell the user their ticket has been created and they can track it on the Customer Support page.
 - For change email/password/address requests, tell the user to visit their Account → Profile page.
 - When a user asks for something similar to a product, call get_similar_products with the product_handle. Never make up handles — only use handles from products already shown in this conversation.
@@ -513,7 +513,11 @@ export async function runChatAgent(opts: {
                 break
               }
               case "get_order_status": {
-                const order = await medusa.getOrderStatus(input.order_id, customer_token)
+                let statusOrderId = input.order_id
+                if (/^\d+$/.test(input.order_id)) {
+                  statusOrderId = await medusa.resolveOrderId(input.order_id, customer_token) ?? input.order_id
+                }
+                const order = await medusa.getOrderStatus(statusOrderId, customer_token)
                 result = order
                 uiDataAccum.orders = [order]
                 send({ type: "ui_action", action: "show_orders", data: [order] })
@@ -592,15 +596,22 @@ export async function runChatAgent(opts: {
                 break
               }
               case "cancel_order": {
+                // Resolve display_id (e.g. "16") to internal UUID if needed
+                let resolvedOrderId = input.order_id
+                if (/^\d+$/.test(input.order_id)) {
+                  const resolved = await medusa.resolveOrderId(input.order_id, customer_token)
+                  if (!resolved) { result = { error: `Could not find order #${input.order_id}` }; break }
+                  resolvedOrderId = resolved
+                }
                 // Fetch order to check eligibility, then show confirmation card — don't auto-cancel
-                const orderData = await medusa.getOrderStatus(input.order_id, customer_token)
+                const orderData = await medusa.getOrderStatus(resolvedOrderId, customer_token)
                 const createdAt = new Date(orderData.created_at ?? Date.now()).getTime()
                 const hoursSince = (Date.now() - createdAt) / (1000 * 60 * 60)
                 if (hoursSince > 24) {
                   // Outside window — create ticket automatically
                   const ticket = createTicket({
                     customer_id: customer_id ?? undefined,
-                    order_id: input.order_id,
+                    order_id: resolvedOrderId,
                     order_display_id: orderData.display_id,
                     type: "refund",
                     subject: `Cancellation request for Order #${orderData.display_id}`,
@@ -611,8 +622,8 @@ export async function runChatAgent(opts: {
                   send({ type: "ui_action", action: "show_ticket_created", ticket_id: ticket.id, order_display_id: orderData.display_id })
                 } else {
                   // Within window — show confirmation card, let customer press the button
-                  result = { eligible: true, order_id: input.order_id, display_id: orderData.display_id }
-                  send({ type: "ui_action", action: "show_cancel_confirm", order_id: input.order_id, display_id: orderData.display_id })
+                  result = { eligible: true, order_id: resolvedOrderId, display_id: orderData.display_id }
+                  send({ type: "ui_action", action: "show_cancel_confirm", order_id: resolvedOrderId, display_id: orderData.display_id })
                 }
                 break
               }
