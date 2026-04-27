@@ -11,7 +11,6 @@ import ProductActionsWrapper from "./product-actions-wrapper"
 import ProductReviews from "@modules/products/components/product-reviews"
 import ProductReviewStars from "@modules/products/components/product-review-stars"
 import { retrieveCustomer } from "@lib/data/customer"
-import { listOrders } from "@lib/data/orders"
 
 type ProductTemplateProps = {
   product: HttpTypes.StoreProduct
@@ -28,10 +27,7 @@ const ProductTemplate: React.FC<ProductTemplateProps> = async ({
 }) => {
   if (!product || !product.id) return notFound()
 
-  const [customer, orders] = await Promise.all([
-    retrieveCustomer().catch(() => null),
-    listOrders(100, 0).catch(() => []),
-  ])
+  const customer = await retrieveCustomer().catch(() => null)
 
   return (
     <>
@@ -120,7 +116,6 @@ const ProductTemplate: React.FC<ProductTemplateProps> = async ({
         <ProductReviews
           product={product}
           customer={customer}
-          orders={orders ?? []}
         />
       </div>
 

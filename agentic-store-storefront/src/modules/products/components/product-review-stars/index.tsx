@@ -1,11 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import useSWR from "swr"
 
 type Props = {
   productId: string
   showEmpty?: boolean
 }
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
 function StarIcon({ filled, half, id }: { filled: boolean; half?: boolean; id: string }) {
   if (half) {
@@ -39,30 +41,23 @@ function StarIcon({ filled, half, id }: { filled: boolean; half?: boolean; id: s
 }
 
 export default function ProductReviewStars({ productId, showEmpty = false }: Props) {
-  const [data, setData] = useState<{ average_rating: number; count: number } | null>(null)
-  const [loaded, setLoaded] = useState(false)
+  const { data, isLoading } = useSWR(`/api/reviews?product_id=${productId}`, fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 60000,
+  })
 
-  useEffect(() => {
-    fetch(`/api/reviews?product_id=${productId}`, { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => {
-        setData({ average_rating: d.average_rating ?? 0, count: d.count ?? 0 })
-        setLoaded(true)
-      })
-      .catch(() => setLoaded(true))
-  }, [productId])
+  if (isLoading) return <div className="h-4" />
 
-  if (!loaded) return <div className="h-4" />
+  const count = data?.count ?? 0
+  const avg = data?.average_rating ?? 0
 
-  if (!data || data.count === 0) {
+  if (count === 0) {
     if (!showEmpty) return null
-    return (
-      <span className="text-[10px] text-gray-400">No reviews yet</span>
-    )
+    return <span className="text-[10px] text-gray-400">No reviews yet</span>
   }
 
-  const full = Math.floor(data.average_rating)
-  const half = data.average_rating % 1 >= 0.5
+  const full = Math.floor(avg)
+  const half = avg % 1 >= 0.5
 
   return (
     <div className="flex items-center gap-1">
@@ -80,7 +75,7 @@ export default function ProductReviewStars({ productId, showEmpty = false }: Pro
           )
         })}
       </div>
-      <span className="text-[10px] text-gray-400">({data.count})</span>
+      <span className="text-[10px] text-gray-400">({count})</span>
     </div>
   )
 }

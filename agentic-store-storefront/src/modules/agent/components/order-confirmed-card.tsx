@@ -5,21 +5,28 @@ import LocalizedClientLink from "@modules/common/components/localized-client-lin
 
 type Props = {
   order: { id: string; display_id: string; total: number; currency_code: string; item_count: number }
+  isLight?: boolean
 }
 
-export default function OrderConfirmedCard({ order }: Props) {
+export default function OrderConfirmedCard({ order, isLight }: Props) {
+  const bgClass = isLight ? "bg-emerald-50 border-emerald-200" : "bg-emerald-500/10 border-emerald-500/30"
+  const titleClass = isLight ? "text-emerald-900" : "text-emerald-400"
+  const metaClass = isLight ? "text-emerald-700" : "text-emerald-200/70"
+  const descClass = isLight ? "text-emerald-800" : "text-emerald-100/90"
+  const subClass = isLight ? "text-emerald-600" : "text-emerald-200/50"
+
   return (
-    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 shadow-sm space-y-3 w-full max-w-xs">
+    <div className={`border rounded-2xl p-4 shadow-sm space-y-3 w-full max-w-xs ${bgClass}`}>
       <div className="flex items-center gap-2">
         <span className="text-emerald-500 text-lg">✅</span>
         <div>
-          <p className="text-sm font-bold text-gray-900">Order Placed!</p>
-          <p className="text-xs text-gray-500">Order #{order.display_id}</p>
+          <p className={`text-sm font-bold ${titleClass}`}>Order Placed!</p>
+          <p className={`text-xs ${metaClass}`}>Order #{order.display_id}</p>
         </div>
       </div>
-      <div className="text-xs text-gray-600 space-y-0.5">
+      <div className={`text-xs space-y-0.5 ${descClass}`}>
         <p>{order.item_count} item{order.item_count !== 1 ? "s" : ""} · {convertToLocale({ amount: order.total, currency_code: order.currency_code })}</p>
-        <p className="text-gray-400">You'll receive a confirmation email shortly.</p>
+        <p className={subClass}>You'll receive a confirmation email shortly.</p>
       </div>
       <LocalizedClientLink
         href={`/account/orders/details/${order.id}`}

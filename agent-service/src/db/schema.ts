@@ -49,5 +49,47 @@ function initSchema(db: any) {
       history_window INTEGER NOT NULL DEFAULT 30,
       updated_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
+
+    CREATE TABLE IF NOT EXISTS support_tickets (
+      id TEXT PRIMARY KEY,
+      customer_id TEXT,
+      customer_email TEXT,
+      customer_name TEXT,
+      order_id TEXT,
+      order_display_id INTEGER,
+      type TEXT NOT NULL DEFAULT 'general',
+      status TEXT NOT NULL DEFAULT 'open',
+      subject TEXT,
+      session_id TEXT,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE TABLE IF NOT EXISTS ticket_messages (
+      id TEXT PRIMARY KEY,
+      ticket_id TEXT NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+      sender_role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_tickets_customer ON support_tickets(customer_id, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_ticket_messages ON ticket_messages(ticket_id, created_at);
+
+    CREATE TABLE IF NOT EXISTS tryon_jobs (
+      id TEXT PRIMARY KEY,
+      customer_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      product TEXT NOT NULL,
+      context_image_used TEXT NOT NULL,
+      image_url TEXT,
+      error TEXT,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_tryon_jobs_customer ON tryon_jobs(customer_id, created_at);
   `)
+
+  // Migrations — safe to run repeatedly
+  try { db.exec("ALTER TABLE messages ADD COLUMN ui_data TEXT") } catch { /* already exists */ }
 }

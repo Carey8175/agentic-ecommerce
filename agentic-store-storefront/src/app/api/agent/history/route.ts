@@ -7,7 +7,10 @@ export async function GET(req: NextRequest) {
   const { token, customerId } = await resolveCustomer()
   const url = new URL(req.url)
   const sessionId = url.searchParams.get("session_id")
-  const path = sessionId ? `/agent/sessions/${sessionId}/messages` : "/agent/sessions"
+  const surface = url.searchParams.get("surface")
+  const path = sessionId
+    ? `/agent/sessions/${sessionId}/messages`
+    : surface ? `/agent/sessions?surface=${surface}` : "/agent/sessions"
   const res = await fetch(`${AGENT_URL}${path}`, {
     headers: { "x-customer-id": customerId, "x-customer-token": token },
   })

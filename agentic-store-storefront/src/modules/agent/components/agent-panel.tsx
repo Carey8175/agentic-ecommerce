@@ -5,6 +5,9 @@ import { streamChat } from "../hooks/use-agent-stream"
 import ProductCard from "./product-card"
 import CheckoutCard from "./checkout-card"
 import OrderConfirmedCard from "./order-confirmed-card"
+import CancelConfirmCard from "./cancel-confirm-card"
+import TicketCreatedCard from "./ticket-created-card"
+import PromoCard from "./promo-card"
 import HistoryTab from "./history-tab"
 import OrderCard from "./order-card"
 import CartCard from "./cart-card"
@@ -22,7 +25,12 @@ type Message = {
   cartData?: any
   checkoutData?: any
   confirmedOrder?: any
+  cancelData?: { orderId: string; displayId: number }
+  confirmedCancel?: boolean
+  ticketData?: { ticketId: string; orderDisplayId?: number }
+  promotions?: any[]
   uiAction?: any
+  tryOnJobId?: string
 }
 
 type AgentPanelProps = {
@@ -63,11 +71,46 @@ export default function AgentPanel({ mode = "floating", cartId = null, initialTa
       .catch(() => {})
   }, [])
 
-  // On mount: hero always starts fresh; floating panel restores existing session
+  // Poll try-on jobs queued in THIS session and notify user in chat when done
+  const notifyTryOnDone = useCallback((jobId: string) => {
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/agent/tryon-jobs?id=${jobId}`)
+        if (!res.ok) return
+        const data = await res.json()
+        if (data.status === "done") {
+          setMessages(prev => [...prev, {
+            id: `tryon-done-${jobId}`,
+            role: "assistant",
+            content: `Your virtual try-on is ready!`,
+            tryOnJobId: jobId,
+          }])
+        } else if (data.status === "error") {
+          setMessages(prev => [...prev, {
+            id: `tryon-err-${jobId}`,
+            role: "assistant",
+            content: `Your try-on generation encountered an issue: ${data.error ?? "unknown error"}. Please try again.`,
+          }])
+        } else {
+          setTimeout(poll, 5000)
+        }
+      } catch { setTimeout(poll, 8000) }
+    }
+    setTimeout(poll, 5000)
+  }, [])
+
+  const sendMessageRef = useRef(sendMessage)
+  useEffect(() => {
+    sendMessageRef.current = sendMessage
+  }, [sendMessage])
+
+  // On mount: hero always starts a fresh session; floating panel restores existing
   useEffect(() => {
     if (isHero) {
       localStorage.removeItem("_agent_session_id")
       setSession(null)
+      setMessages([])
+      window.dispatchEvent(new CustomEvent(CLEAR_EVENT))
       return
     }
     const stored = localStorage.getItem("_agent_session_id")
@@ -87,6 +130,10 @@ export default function AgentPanel({ mode = "floating", cartId = null, initialTa
               cartData: m.cartData,
               checkoutData: m.checkoutData,
               confirmedOrder: m.confirmedOrder,
+              cancelData: m.cancelData,
+              ticketData: m.ticketData,
+              promotions: m.promotions,
+              uiAction: m.uiAction,
             }))
           if (msgs.length) setMessages(msgs)
         })
@@ -119,15 +166,24 @@ export default function AgentPanel({ mode = "floating", cartId = null, initialTa
       setCheckoutPending(false)
     }
 
+    const handleOpenAndSend = (e: any) => {
+      setActiveTab("chat")
+      if (e.detail?.message) {
+        sendMessageRef.current(e.detail.message, e.detail.hidden_context)
+      }
+    }
+
     window.addEventListener(SESSION_EVENT, handleSessionCreated)
     window.addEventListener(MSG_EVENT, handleMsgUpdate)
     window.addEventListener(CLEAR_EVENT, handleClear)
     window.addEventListener("agent_checkout_error", handleCheckoutError)
+    window.addEventListener("agent_open_and_send", handleOpenAndSend)
     return () => {
       window.removeEventListener(SESSION_EVENT, handleSessionCreated)
       window.removeEventListener(MSG_EVENT, handleMsgUpdate)
       window.removeEventListener(CLEAR_EVENT, handleClear)
       window.removeEventListener("agent_checkout_error", handleCheckoutError)
+      window.removeEventListener("agent_open_and_send", handleOpenAndSend)
     }
   }, [])
 
@@ -166,7 +222,7 @@ export default function AgentPanel({ mode = "floating", cartId = null, initialTa
     setMessages(prev => [...prev, { ...msg, id: Math.random().toString(36).slice(2) }])
   }, [])
 
-  async function sendMessage(text?: string) {
+  async function sendMessage(text?: string, hiddenContext?: string) {
     const msg = (text ?? input).trim()
     if (!msg || streaming) return
     setInput("")
@@ -180,15 +236,21 @@ export default function AgentPanel({ mode = "floating", cartId = null, initialTa
     let orderList: any[] = []
     let cartData: any = null
     let checkoutData: any = null
+    let cancelData: { orderId: string; displayId: number } | null = null
+    let ticketData: { ticketId: string; orderDisplayId?: number } | null = null
+    let promotions: any[] | null = null
     let uiAction: any = null
     let resolvedSessionId = sessionIdRef.current
 
     setMessages(prev => [...prev, { id: assistantId, role: "assistant", content: "" }])
     setStreaming(true)
 
+    // Append hidden context to the payload sent to the AI without displaying it to the user
+    const aiMessagePayload = hiddenContext ? `${msg}\n[System Hidden Context: ${hiddenContext}]` : msg;
+
     try {
       for await (const event of streamChat({
-        message: msg,
+        message: aiMessagePayload,
         sessionId: resolvedSessionId,
         cartId,
         surface: mode,
@@ -208,17 +270,36 @@ export default function AgentPanel({ mode = "floating", cartId = null, initialTa
           if (event.action === "show_orders") orderList = event.data ?? []
           else if (event.action === "show_cart") cartData = event.data
           else if (event.action === "show_checkout_confirm") { checkoutData = event.data; setCheckoutPending(true) }
+          else if (event.action === "show_cancel_confirm") cancelData = { orderId: event.order_id, displayId: event.display_id }
+          else if (event.action === "show_ticket_created") ticketData = { ticketId: event.ticket_id, orderDisplayId: event.order_display_id }
+          else if (event.action === "show_promotions") promotions = event.data ?? []
           else if (event.action === "redirect_to_tryon") uiAction = event
+          else if (event.action === "tryon_job_queued") {
+            const jobId = event.data?.job_id
+            if (jobId) {
+              try {
+                const stored = localStorage.getItem("_agent_tryon_jobs")
+                const existing: string[] = stored ? JSON.parse(stored) : []
+                const updated = [...existing, jobId].slice(-10)
+                localStorage.setItem("_agent_tryon_jobs", JSON.stringify(updated))
+              } catch { localStorage.setItem("_agent_tryon_jobs", JSON.stringify([jobId])) }
+              notifyTryOnDone(jobId)
+            }
+          }
         } else if (event.type === "done") {
           setMessages(prev => {
             const updated = prev.map(m => m.id === assistantId
-              ? { ...m, content: assistantText, products: productList.length ? productList : undefined, orders: orderList.length ? orderList : undefined, cartData: cartData ?? undefined, checkoutData: checkoutData ?? undefined, uiAction: uiAction ?? undefined }
+              ? { ...m, content: assistantText, products: productList.length ? productList : undefined, orders: orderList.length ? orderList : undefined, cartData: cartData ?? undefined, checkoutData: checkoutData ?? undefined, cancelData: cancelData ?? undefined, ticketData: ticketData ?? undefined, promotions: promotions ?? undefined, uiAction: uiAction ?? undefined }
               : m
             )
             // Schedule broadcast outside of the state updater to avoid setState-during-render
             setTimeout(() => {
               if (resolvedSessionId) broadcastSession(resolvedSessionId, updated)
               else broadcastMessages(updated)
+              
+              if (ticketData) {
+                window.dispatchEvent(new Event("ticket_created"))
+              }
             }, 0)
             return updated
           })
@@ -246,6 +327,15 @@ export default function AgentPanel({ mode = "floating", cartId = null, initialTa
             id: m.id ?? Math.random().toString(36).slice(2),
             role: m.role,
             content: m.content ?? "",
+            products: m.products,
+            orders: m.orders,
+            cartData: m.cartData,
+            checkoutData: m.checkoutData,
+            confirmedOrder: m.confirmedOrder,
+            cancelData: m.cancelData,
+            ticketData: m.ticketData,
+            promotions: m.promotions,
+            uiAction: m.uiAction,
           }))
         setMessages(msgs)
         setActiveTab("chat")
@@ -272,6 +362,7 @@ export default function AgentPanel({ mode = "floating", cartId = null, initialTa
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? "Checkout failed")
+      fetch("/api/agent/bust-cache", { method: "POST" }).catch(() => {})
       setMessages(prev => prev.map(m => m.id === assistantId
         ? { ...m, content: "Your order has been placed!", confirmedOrder: json.order }
         : m
@@ -292,7 +383,7 @@ export default function AgentPanel({ mode = "floating", cartId = null, initialTa
     setCheckoutPending(false)
     setMessages(prev => {
       const updated = prev.map(m => m.checkoutData ? { ...m, checkoutData: undefined, confirmedOrder: order } : m)
-      broadcastMessages(updated)
+      setTimeout(() => broadcastMessages(updated), 0)
       return updated
     })
     // Soft reload by refreshing the Next.js router cache to instantly update the cart badge
@@ -308,31 +399,43 @@ export default function AgentPanel({ mode = "floating", cartId = null, initialTa
   const isHero = mode === "hero"
   const isSupport = mode === "support"
 
+  const containerBg = isSupport ? "bg-white shadow-sm border border-gray-200" : "bg-[#0f1117]"
+  const headerBg = isSupport ? "border-gray-200" : "border-white/10"
+  const tabActiveClass = isSupport ? "bg-gray-100 text-gray-900" : "bg-white/10 text-white"
+  const tabInactiveClass = isSupport ? "text-gray-500 hover:text-gray-800" : "text-white/40 hover:text-white/70"
+  const aiBubbleBg = isSupport ? "bg-indigo-600" : "bg-indigo-500"
+  const userMsgBg = isSupport ? "bg-indigo-600 text-white" : "bg-indigo-600 text-white"
+  const assistantMsgBg = isSupport ? "bg-gray-100 text-gray-800" : "bg-white/8 text-white/90"
+  const inputBg = isSupport ? "bg-gray-50 border-gray-200" : "bg-white/8 border-white/10"
+  const inputColor = isSupport ? "text-gray-900 placeholder-gray-400" : "text-white placeholder-white/30"
+  const suggestedBg = isSupport ? "text-gray-600 border-gray-200 hover:bg-gray-50" : "text-white/60 border-white/10 hover:bg-white/5"
+  const dotColor = isSupport ? "bg-gray-400" : "bg-white/40"
+
   return (
-    <div className={`flex flex-col ${isHero ? "w-full h-full" : isSupport ? "w-full max-w-2xl mx-auto h-[70vh]" : "w-full h-full"} bg-[#0f1117] rounded-2xl overflow-hidden`}>
+    <div className={`flex flex-col ${isHero ? "w-full h-full" : isSupport ? "w-full h-full" : "w-full h-full"} ${containerBg} rounded-2xl overflow-hidden`}>
 
       {/* Tabs — not shown in hero mode */}
       {!isHero && (
-        <div className="flex items-center border-b border-white/10 px-3 pt-3 gap-1 flex-shrink-0">
+        <div className={`flex items-center border-b ${headerBg} px-3 pt-3 gap-1 flex-shrink-0`}>
           {(["chat", "history"] as Tab[]).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`px-3 py-1.5 text-xs font-medium rounded-t-lg transition-colors capitalize ${
-                activeTab === tab ? "bg-white/10 text-white" : "text-white/40 hover:text-white/70"
+                activeTab === tab ? tabActiveClass : tabInactiveClass
               }`}
             >
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
           <div className="flex-1" />
-          <LocalizedClientLink href="/try-on" className="px-2.5 py-1 text-[10px] font-semibold text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 rounded-full mr-1 transition-colors mb-1">
+          <LocalizedClientLink href="/try-on" className={`px-2.5 py-1 text-[10px] font-semibold rounded-full mr-1 transition-colors mb-1 ${isSupport ? "text-indigo-500 hover:text-indigo-600 border border-indigo-200 bg-indigo-50" : "text-indigo-400 hover:text-indigo-300 border border-indigo-500/30"}`}>
             Try-On
           </LocalizedClientLink>
           <button
             onClick={startNewChat}
             title="New chat"
-            className="px-2.5 py-1 text-[10px] font-semibold text-white/40 hover:text-white/70 border border-white/10 rounded-full transition-colors mb-1"
+            className={`px-2.5 py-1 text-[10px] font-semibold rounded-full transition-colors mb-1 ${isSupport ? "text-gray-500 hover:text-gray-800 border-gray-200 border" : "text-white/40 hover:text-white/70 border border-white/10"}`}
           >
             + New
           </button>
@@ -345,8 +448,8 @@ export default function AgentPanel({ mode = "floating", cartId = null, initialTa
           <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4 no-scrollbar">
             {messages.length === 0 && (
               <div className="flex items-start gap-3">
-                <div className="w-7 h-7 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">AI</div>
-                <div className="bg-white/8 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-white/90 max-w-xs">
+                <div className={`w-7 h-7 rounded-full ${aiBubbleBg} flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}>AI</div>
+                <div className={`${assistantMsgBg} rounded-2xl rounded-tl-sm px-4 py-3 text-sm max-w-xs`}>
                   Hi there! I&apos;m your AI shopping assistant. How can I help you today?
                 </div>
               </div>
@@ -354,40 +457,49 @@ export default function AgentPanel({ mode = "floating", cartId = null, initialTa
             {messages.map(msg => (
               <div key={msg.id} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                 {msg.role === "assistant" && (
-                  <div className="w-7 h-7 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-1">AI</div>
+                  <div className={`w-7 h-7 rounded-full ${aiBubbleBg} flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-1`}>AI</div>
                 )}
                 <div className="max-w-[80%] space-y-2">
                   {(msg.content || (msg.role === "assistant" && streaming && msg.id === messages[messages.length - 1]?.id)) && (
                     <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                      msg.role === "user" ? "bg-indigo-600 text-white rounded-tr-sm" : "bg-white/8 text-white/90 rounded-tl-sm"
+                      msg.role === "user" ? `${userMsgBg} rounded-tr-sm` : `${assistantMsgBg} rounded-tl-sm`
                     }`}>
                       {msg.content || (
                         <span className="inline-flex gap-1">
-                          {[0,1,2].map(i => <span key={i} className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />)}
+                          {[0,1,2].map(i => <span key={i} className={`w-1.5 h-1.5 ${dotColor} rounded-full animate-bounce`} style={{ animationDelay: `${i * 0.15}s` }} />)}
                         </span>
                       )}
                     </div>
                   )}
                   {msg.products && msg.products.length > 0 && (
                     <div className="flex flex-col gap-2 w-full">
-                      {msg.products.map((p: any) => <ProductCard key={p.id} product={p} />)}
+                      {msg.products.map((p: any) => (
+                        <ProductCard
+                          key={p.id}
+                          product={p}
+                          isLight={isSupport}
+                          onTryOn={(productId, productTitle) =>
+                            sendMessage(`Try on ${productTitle}`, `product_id: ${productId}`)
+                          }
+                        />
+                      ))}
                     </div>
                   )}
                   {msg.orders && msg.orders.length > 0 && (
                     <div className="flex flex-col gap-2 w-full">
-                      {msg.orders.map((o: any) => <OrderCard key={o.id} order={o} />)}
+                      {msg.orders.map((o: any) => <OrderCard key={o.id} order={o} isLight={isSupport} />)}
                     </div>
                   )}
                   {msg.cartData && (
                     <div className="flex flex-col gap-2 w-full">
-                      <CartCard cart={msg.cartData} onCheckout={handleCartCheckout} />
+                      <CartCard cart={msg.cartData} onCheckout={handleCartCheckout} isLight={isSupport} />
                     </div>
                   )}
                   {msg.uiAction?.action === "redirect_to_tryon" && (
-                    <div className="bg-white/5 border border-indigo-500/20 rounded-xl p-3 flex items-center justify-between gap-3">
-                      <p className="text-xs text-white/60">Ready to try it on?</p>
+                    <div className={`border rounded-xl p-3 flex items-center justify-between gap-3 ${isSupport ? "bg-indigo-50 border-indigo-200" : "bg-white/5 border-indigo-500/20"}`}>
+                      <p className={`text-xs ${isSupport ? "text-gray-600" : "text-white/60"}`}>Ready to try it on?</p>
                       <LocalizedClientLink href="/try-on" className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-full hover:bg-indigo-700 transition-colors font-medium">
-                        Open Try-On Studio ✨
+                        Open Try-On Studio
                       </LocalizedClientLink>
                     </div>
                   )}
@@ -397,6 +509,7 @@ export default function AgentPanel({ mode = "floating", cartId = null, initialTa
                         data={msg.checkoutData}
                         cartId={cartId} // pass the active cart ID to verify it hasn't changed
                         onSuccess={handleOrderSuccess}
+                        isLight={isSupport}
                         onDismiss={() => {
                           setCheckoutPending(false)
                           setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, checkoutData: undefined } : m))
@@ -404,7 +517,53 @@ export default function AgentPanel({ mode = "floating", cartId = null, initialTa
                       />
                     </div>
                   )}
-                  {msg.confirmedOrder && <OrderConfirmedCard order={msg.confirmedOrder} />}
+                  {msg.confirmedOrder && <OrderConfirmedCard order={msg.confirmedOrder} isLight={isSupport} />}
+                  {msg.confirmedCancel && (
+                    <div className={`border rounded-xl p-3 flex items-center gap-3 w-full ${isSupport ? "bg-emerald-50 border-emerald-200" : "bg-white/5 border-emerald-500/30"}`}>
+                      <span className="text-emerald-500 text-lg flex-shrink-0">✓</span>
+                      <div>
+                        <p className={`text-xs font-semibold ${isSupport ? "text-emerald-900" : "text-white"}`}>Order Cancelled</p>
+                        <p className={`text-[10px] mt-0.5 ${isSupport ? "text-emerald-700" : "text-white/50"}`}>Refund will be processed within 3–5 business days.</p>
+                      </div>
+                    </div>
+                  )}
+                  {msg.cancelData && !msg.confirmedOrder && (
+                    <CancelConfirmCard
+                      orderId={msg.cancelData.orderId}
+                      displayId={msg.cancelData.displayId}
+                      isLight={isSupport}
+                      onConfirmed={(successMsg) => {
+                        setMessages(prev => prev.map(m => m.id === msg.id
+                          ? { ...m, cancelData: undefined, confirmedCancel: true, content: successMsg || "Your order has been successfully cancelled. A refund will be processed within 3–5 business days." }
+                          : m
+                        ))
+                        setTimeout(() => router.refresh(), 500)
+                      }}
+                      onDismiss={() => {
+                        setMessages(prev => prev.map(m => m.id === msg.id
+                          ? { ...m, cancelData: undefined, content: "No problem — your order will continue as normal." }
+                          : m
+                        ))
+                      }}
+                    />
+                  )}
+                  {msg.promotions && msg.promotions.length > 0 && (
+                    <PromoCard promos={msg.promotions} isLight={isSupport} />
+                  )}
+                  {msg.ticketData && (
+                    <TicketCreatedCard
+                      ticketId={msg.ticketData.ticketId}
+                      orderDisplayId={msg.ticketData.orderDisplayId}
+                      isLight={isSupport}
+                    />
+                  )}
+                  {msg.tryOnJobId && (
+                    <LocalizedClientLink href={`/try-on/${msg.tryOnJobId}`}>
+                      <button className={`text-xs font-semibold px-4 py-2 rounded-xl transition-colors ${isSupport ? "bg-indigo-600 text-white hover:bg-indigo-700" : "bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 border border-indigo-500/30"}`}>
+                        View Try-On Result →
+                      </button>
+                    </LocalizedClientLink>
+                  )}
                 </div>
               </div>
             ))}
@@ -414,7 +573,7 @@ export default function AgentPanel({ mode = "floating", cartId = null, initialTa
           {messages.length === 0 && (
             <div className="px-4 pb-3 flex flex-wrap gap-2">
               {SUGGESTED.map(s => (
-                <button key={s} onClick={() => sendMessage(s)} className="text-xs text-white/60 border border-white/10 rounded-full px-3 py-1 hover:bg-white/5 transition-colors">
+                <button key={s} onClick={() => sendMessage(s)} className={`text-xs rounded-full px-3 py-1 transition-colors border ${suggestedBg}`}>
                   {s}
                 </button>
               ))}
@@ -422,10 +581,10 @@ export default function AgentPanel({ mode = "floating", cartId = null, initialTa
           )}
 
           <div className={`px-4 pb-4 flex-shrink-0 ${checkoutPending ? "opacity-50 pointer-events-none" : ""}`}>
-            <div className="flex gap-2 bg-white/8 rounded-full px-4 py-2.5 border border-white/10">
+            <div className={`flex gap-2 rounded-full px-4 py-2.5 border ${inputBg}`}>
               <input
                 ref={inputRef}
-                className="flex-1 bg-transparent text-sm text-white placeholder-white/30 outline-none"
+                className={`flex-1 bg-transparent text-sm outline-none ${inputColor}`}
                 placeholder={checkoutPending ? "Complete or dismiss your order above" : "Ask me anything..."}
                 value={input}
                 onChange={e => setInput(e.target.value)}
@@ -445,7 +604,7 @@ export default function AgentPanel({ mode = "floating", cartId = null, initialTa
       )}
 
       {activeTab === "history" && !isHero && (
-        <HistoryTab onResumeSession={resumeSession} currentSessionId={sessionId} />
+        <HistoryTab onResumeSession={resumeSession} currentSessionId={sessionId} isLight={isSupport} surface={mode} />
       )}
     </div>
   )

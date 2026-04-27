@@ -190,6 +190,24 @@ export default function ProductActions({ product, disabled }: ProductActionsProp
             Buy Now
           </button>
         </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            window.dispatchEvent(
+              new CustomEvent("agent_open_and_send", { 
+                detail: { 
+                  message: `Try on ${product.title}`,
+                  hidden_context: `product_id: ${product.id}` 
+                } 
+              })
+            )
+          }}
+          className="mt-1 py-3.5 rounded-2xl border-2 border-indigo-100 bg-indigo-50 text-indigo-600 text-sm font-extrabold hover:bg-indigo-100 hover:border-indigo-200 transition-all w-full flex items-center justify-center gap-2"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
+          Virtual Try-On
+        </button>
       </div>
 
       <MobileActions

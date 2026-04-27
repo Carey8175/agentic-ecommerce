@@ -19,6 +19,9 @@ module.exports = defineConfig({
       resolve: "./src/modules/review",
     },
     {
+      resolve: "./src/modules/agent-config",
+    },
+    {
       resolve: "@medusajs/medusa/caching",
       options: {
         providers: [

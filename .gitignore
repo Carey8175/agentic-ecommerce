@@ -87,3 +87,16 @@ docs/superpowers/
 
 # Scratch scripts
 agentic-store-storefront/src/scripts/
+agent-service/src/scripts/
+agent-service/test-*.js
+agent-service/test-*.ts
+agent-service/test-*.py
+agent-service/server.js
+
+# SQLite DB
+agent.db
+
+# Agent uploads (profile photos + try-on results)
+agent-service/src/uploads/*/tryon-*.png
+agent-service/src/uploads/*/*.jpeg
+agent-service/src/uploads/*/*.jpg

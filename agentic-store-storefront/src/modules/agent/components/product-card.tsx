@@ -14,9 +14,11 @@ type ProductCardProps = {
     thumbnail?: string
     variants: { id: string; title: string; price: number | null; currency: string | null; in_stock: boolean }[]
   }
+  isLight?: boolean
+  onTryOn?: (productId: string, productTitle: string) => void
 }
 
-export default function ProductCard({ product }: ProductCardProps) {
+export default function ProductCard({ product, isLight, onTryOn }: ProductCardProps) {
   const [adding, setAdding] = useState(false)
   const [added, setAdded] = useState(false)
   const variant = product.variants[0]
@@ -37,8 +39,16 @@ export default function ProductCard({ product }: ProductCardProps) {
     }
   }
 
+  const bgClass = isLight ? "bg-white border-gray-200 hover:bg-gray-50" : "bg-white/6 border-white/10 hover:bg-white/10"
+  const titleClass = isLight ? "text-gray-900 hover:text-indigo-600" : "text-white/90 hover:text-indigo-400"
+  const priceClass = isLight ? "text-gray-500" : "text-white/50"
+  const emptyPriceClass = isLight ? "text-gray-400" : "text-white/30"
+  const tryOnBtnClass = isLight
+    ? "text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+    : "text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/10"
+
   return (
-    <div className="flex gap-3 p-3 bg-white/6 border border-white/10 rounded-xl hover:bg-white/10 transition-colors w-full">
+    <div className={`flex gap-3 p-3 border rounded-xl transition-colors w-full ${bgClass}`}>
       {product.thumbnail && (
         <LocalizedClientLink href={`/products/${product.handle}`}>
           <img src={product.thumbnail} alt={product.title} className="w-12 h-12 object-cover rounded-lg flex-shrink-0 cursor-pointer" />
@@ -46,23 +56,24 @@ export default function ProductCard({ product }: ProductCardProps) {
       )}
       <div className="flex-1 min-w-0">
         <LocalizedClientLink href={`/products/${product.handle}`}>
-          <p className="text-xs font-semibold text-white/90 leading-snug hover:text-indigo-400 cursor-pointer line-clamp-2">{product.title}</p>
+          <p className={`text-xs font-semibold leading-snug cursor-pointer line-clamp-2 ${titleClass}`}>{product.title}</p>
         </LocalizedClientLink>
         {variant?.price != null ? (
-          <p className="text-xs text-white/50 mt-0.5">
+          <p className={`text-xs mt-0.5 ${priceClass}`}>
             {convertToLocale({ amount: variant.price, currency_code: variant.currency ?? "usd" })}
           </p>
         ) : (
-          <p className="text-[10px] text-white/30 mt-0.5 italic">Price unavailable</p>
+          <p className={`text-[10px] mt-0.5 italic ${emptyPriceClass}`}>Price unavailable</p>
         )}
       </div>
       <div className="flex flex-col gap-1.5 flex-shrink-0 justify-center">
-        <LocalizedClientLink
-          href={`/products/${product.handle}`}
-          className="text-[10px] font-medium text-white/50 border border-white/15 rounded-full px-2.5 py-1 hover:bg-white/10 text-center"
+        <button
+          onClick={() => onTryOn?.(product.id, product.title)}
+          disabled={!onTryOn}
+          className={`text-[10px] font-medium border rounded-full px-2.5 py-1 text-center transition-colors disabled:opacity-30 ${tryOnBtnClass}`}
         >
-          View ↗
-        </LocalizedClientLink>
+          Try On
+        </button>
         <button
           onClick={handleAddToCart}
           disabled={adding || !variant?.in_stock}

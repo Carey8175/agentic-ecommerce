@@ -75,7 +75,7 @@ const StoreTemplate = async ({
               className="px-5 py-2.5 rounded-full text-white/80 text-sm font-medium transition-colors"
               style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)" }}
             >
-              Try-On Studio ✨
+              Try-On Studio
             </a>
           </div>
         </div>

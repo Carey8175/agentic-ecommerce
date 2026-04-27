@@ -24,6 +24,8 @@ export async function detectVisualCategory(product: {
   upload_prompt: string
   upload_tips: string
   category_label: string
+  is_tryon_applicable: boolean
+  not_applicable_reason: string
 }> {
   const response = await byteplus.chat.completions.create({
     model: VLM_MODEL,
@@ -31,7 +33,32 @@ export async function detectVisualCategory(product: {
       {
         role: "system",
         content: `You are a product categorisation AI for a visual try-on/visualisation feature.
-Given a product, determine the best context image the user should upload.
+Given a product, determine whether AI visual try-on makes sense for it, and if so, what context image the user should upload.
+
+Visual try-on IS applicable for:
+- Apparel & Accessories (clothing, shoes, bags, jewellery, watches, hats, scarves)
+- Sporting Goods (wearable items like jerseys, helmets, gear)
+- Luggage & Bags
+- Home & Garden (furniture, decor, rugs, lamps, plants, garden items)
+- Furniture
+- Health & Beauty (skincare, cosmetics, beauty tools — visualise on face/body)
+- Toys & Games (physical toys that can be visualised in a room)
+- Animals & Pet Supplies (pet beds, cages, wearable pet accessories)
+- Cameras & Optics (can be visualised on a desk or shelf)
+
+Visual try-on is NOT applicable for:
+- Food, Beverages & Tobacco
+- Software (digital, subscriptions, apps)
+- Services (intangible)
+- Media (books, music, movies, games — digital or physical)
+- Business & Industrial (machinery, raw materials, B2B equipment)
+- Arts & Entertainment (tickets, events, digital art)
+- Electronics (phones, laptops, cables — too small/abstract to visualise meaningfully)
+- Hardware (tools, fasteners, plumbing)
+- Vehicles & Parts
+- Office Supplies (pens, paper, staplers)
+- Baby & Toddler (clothing exception: baby clothes ARE applicable; furniture like cribs ARE applicable; food/formula is NOT)
+
 Respond ONLY with valid JSON — no explanation, no markdown.`,
       },
       {
@@ -41,17 +68,27 @@ Category: "${product.category ?? "unknown"}"
 Description: "${product.description ?? ""}"
 
 Pick the best upload_type from: self, face, feet, hands, room, wall, kitchen, desk, garden, vehicle, pet, environment, none.
-Return JSON: { "upload_type": "...", "upload_prompt": "Upload a photo of ...", "upload_tips": "...", "category_label": "..." }`,
+Return JSON: { "is_tryon_applicable": true/false, "not_applicable_reason": "..." (empty string if applicable), "upload_type": "...", "upload_prompt": "Upload a photo of ...", "upload_tips": "...", "category_label": "..." }`,
       },
     ],
-    max_tokens: 200,
+    max_tokens: 250,
   })
 
   const raw = response.choices[0]?.message?.content ?? "{}"
   try {
-    return JSON.parse(raw.replace(/```json|```/g, "").trim())
+    const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim())
+    return {
+      is_tryon_applicable: parsed.is_tryon_applicable ?? true,
+      not_applicable_reason: parsed.not_applicable_reason ?? "",
+      upload_type: parsed.upload_type ?? "environment",
+      upload_prompt: parsed.upload_prompt ?? "Upload a relevant photo",
+      upload_tips: parsed.upload_tips ?? "Clear, well-lit photo works best",
+      category_label: parsed.category_label ?? "PRODUCT",
+    }
   } catch {
     return {
+      is_tryon_applicable: true,
+      not_applicable_reason: "",
       upload_type: "environment",
       upload_prompt: "Upload a relevant photo",
       upload_tips: "Clear, well-lit photo works best",
@@ -69,41 +106,50 @@ export async function generateTryOnPrompt(opts: {
   category: string
   uploadType: string
 }): Promise<string> {
+  const isApparel = ["clothing", "apparel", "fashion", "shirt", "shoes", "footwear", "accessories"].some(k =>
+    opts.category.toLowerCase().includes(k) || opts.productTitle.toLowerCase().includes(k)
+  )
+
+  const editInstruction = isApparel
+    ? `Dress the person in Image 1 with the exact clothing/accessory shown in Image 2 ("${opts.productTitle}"). Preserve the person's pose, face, body position, background environment, and lighting exactly. Only replace the relevant clothing/accessory — keep everything else unchanged.`
+    : `Place the product from Image 2 ("${opts.productTitle}") naturally into the scene from Image 1. Keep the entire environment, lighting, perspective, and all other objects in Image 1 completely unchanged. Only add or replace the product in a realistic, well-integrated way as if it was always part of the scene.`
+
   const response = await byteplus.chat.completions.create({
     model: VLM_MODEL,
     messages: [
       {
         role: "system",
-        content: `You are a visual AI for a photorealistic image generation pipeline.
-Analyse both images and output ONLY a detailed Seedream 5.0 generation prompt.
-No explanation. No markdown. Output the prompt text only.`,
+        content: `You are an expert at writing image editing prompts for Seedream 4.5, a state-of-the-art image generation model.
+Your task: analyse two images and write a single, precise editing prompt following Seedream 4.5 best practices.
+
+Rules:
+- Use clear natural language describing subject + action + environment.
+- For editing tasks, explicitly state what to keep unchanged (pose, background, lighting, other objects).
+- Be concise and precise — do NOT stack ornate or repetitive vocabulary.
+- Do NOT use bullet points, markdown, or any formatting.
+- Output the prompt text ONLY — no explanation, no preamble.`,
       },
       {
         role: "user",
         content: [
-          {
-            type: "image_url",
-            image_url: { url: opts.contextImageUrl },
-          },
-          {
-            type: "image_url",
-            image_url: { url: opts.productImageUrl },
-          },
+          { type: "image_url", image_url: { url: opts.contextImageUrl } },
+          { type: "image_url", image_url: { url: opts.productImageUrl } },
           {
             type: "text",
-            text: `Image 1 is the user's context (${opts.uploadType}).
-Image 2 is the product: "${opts.productTitle}" (category: ${opts.category}).
-Generate a detailed, photorealistic Seedream 5.0 prompt showing the product
-naturally in/on/with the context. Style: professional product photography,
-natural lighting, high detail.`,
+            text: `Image 1: the user's scene/person (context type: ${opts.uploadType}).
+Image 2: the product to visualise — "${opts.productTitle}" (category: ${opts.category}).
+
+Task: ${editInstruction}
+
+Write the Seedream 4.5 image editing prompt now.`,
           },
         ] as any,
       },
     ],
-    max_tokens: 400,
+    max_tokens: 300,
   })
 
-  return response.choices[0]?.message?.content?.trim() ?? `${opts.productTitle} in a natural setting`
+  return response.choices[0]?.message?.content?.trim() ?? `Place "${opts.productTitle}" naturally into the scene, keeping the environment unchanged.`
 }
 
 // ── Seedream 5.0: Generate image ──────────────────────────────────────────────
@@ -112,6 +158,7 @@ export async function generateTryOnImage(opts: {
   prompt: string
   contextImageUrl: string
   productImageUrl: string
+  customerId?: string
 }): Promise<string> {
   const response = await (byteplus.images.generate as any)({
     model: SEEDREAM_MODEL,
@@ -126,12 +173,15 @@ export async function generateTryOnImage(opts: {
   const imageUrl: string = response.data?.[0]?.url
   if (!imageUrl) throw new Error("Seedream returned no image URL")
 
-  // Download and save locally (BytePlus URLs expire in 24h)
+  // Save into customer subfolder if customer_id provided
+  const subdir = opts.customerId ? path.join(UPLOADS_DIR, opts.customerId) : UPLOADS_DIR
+  if (!fs.existsSync(subdir)) fs.mkdirSync(subdir, { recursive: true })
+
   const filename = `tryon-${uuidv4()}.png`
-  const localPath = path.join(UPLOADS_DIR, filename)
+  const localPath = path.join(subdir, filename)
   await downloadFile(imageUrl, localPath)
 
-  return `/uploads/${filename}`
+  return opts.customerId ? `/uploads/${opts.customerId}/${filename}` : `/uploads/${filename}`
 }
 
 // ── Upload helpers ────────────────────────────────────────────────────────────

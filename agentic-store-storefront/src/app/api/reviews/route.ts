@@ -1,5 +1,6 @@
 import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
+import { revalidateTag } from "next/cache"
 
 const BACKEND = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://127.0.0.1:9001"
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
@@ -25,6 +26,9 @@ export async function POST(req: NextRequest) {
   })
 
   const data = await res.json()
+  if (res.ok && body.product_id) {
+    revalidateTag(`reviews_${body.product_id}`)
+  }
   return NextResponse.json(data, { status: res.status })
 }
 
@@ -40,7 +44,7 @@ export async function GET(req: NextRequest) {
     `${BACKEND}/store/reviews?product_id=${product_id}`,
     {
       headers: { "x-publishable-api-key": PUB_KEY },
-      next: { revalidate: 0 },
+      next: { tags: [`reviews_${product_id}`], revalidate: 3600 },
     }
   )
 

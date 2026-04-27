@@ -1,6 +1,6 @@
 "use client"
 
-import { useDummyChat } from "../hooks/use-dummy-chat"
+import { useAgentChat } from "../hooks/use-agent-chat"
 import ChatMessages from "./chat-messages"
 import ChatInput from "./chat-input"
 import PromptChips from "./prompt-chips"
@@ -75,7 +75,7 @@ export default function CustomerServiceChat() {
   const q = searchParams.get("q")
   const hasInitialized = useRef(false)
 
-  const { messages, input, setInput, send } = useDummyChat(
+  const { messages, input, setInput, send } = useAgentChat(
     "Hi! I'm your support assistant. How can I help you today?",
     "support"
   )

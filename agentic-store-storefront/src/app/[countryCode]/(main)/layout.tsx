@@ -7,7 +7,7 @@ import { StoreCartShippingOption } from "@medusajs/types"
 import CartMismatchBanner from "@modules/layout/components/cart-mismatch-banner"
 import Footer from "@modules/layout/templates/footer"
 import Nav from "@modules/layout/templates/nav"
-import FloatingChat from "@modules/ai-chat/components/floating-chat"
+import AgentBubble from "@modules/agent/components/agent-bubble"
 import FreeShippingPriceNudge from "@modules/shipping/components/free-shipping-price-nudge"
 
 export const metadata: Metadata = {
@@ -41,7 +41,7 @@ export default async function PageLayout(props: { children: React.ReactNode }) {
       )}
       {props.children}
       <Footer />
-      <FloatingChat />
+      <AgentBubble cartId={cart?.id ?? null} />
     </>
   )
 }

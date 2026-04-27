@@ -9,6 +9,7 @@ import ProfilePassword from "@modules/account/components/profile-password"
 import { notFound } from "next/navigation"
 import { listRegions } from "@lib/data/regions"
 import { retrieveCustomer } from "@lib/data/customer"
+import TryOnPersonalization from "@modules/account/components/tryon-personalization"
 
 export const metadata: Metadata = {
   title: "Profile",
@@ -43,6 +44,8 @@ export default async function Profile() {
         <ProfilePassword customer={customer} />
         <Divider />
         <ProfileBillingAddress customer={customer} regions={regions} />
+        <Divider />
+        <TryOnPersonalization customer={customer} />
       </div>
     </div>
   )
