@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: medusa
+      POSTGRES_PASSWORD: "admin123$"
+      POSTGRES_DB: medusa
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+
+  medusa:
+    build: ./agentic-store
+    restart: always
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "9001:9001"
+    env_file: ./agentic-store/.env.production
+    volumes:
+      - medusa_uploads:/app/.uploads
+
+  storefront:
+    build: ./agentic-store-storefront
+    restart: always
+    depends_on:
+      - medusa
+    ports:
+      - "3000:3000"
+    env_file: ./agentic-store-storefront/.env.production
+
+  agent:
+    build: ./agent-service
+    restart: always
+    depends_on:
+      - medusa
+    ports:
+      - "3001:3001"
+    env_file: ./agent-service/.env.production
+    volumes:
+      - agent_uploads:/app/src/uploads
+      - agent_db:/app/src/db
+
+volumes:
+  postgres_data:
+  medusa_uploads:
+  agent_uploads:
+  agent_db:
