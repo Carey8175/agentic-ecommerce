@@ -78,7 +78,7 @@ module.exports = defineConfig({
             id: "local",
             options: {
               upload_dir: ".uploads",
-              backend_url: "http://192.168.0.122:9001/uploads"
+              backend_url: "http://192.168.0.56:9001/uploads"
             },
           },
         ],
