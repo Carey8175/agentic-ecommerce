@@ -7,7 +7,7 @@ const AGENT_URL = process.env.AGENT_SERVICE_URL ?? "http://localhost:3001"
 
 export async function POST(req: NextRequest) {
   const { token, customerId } = await resolveCustomer()
-  const body = await req.json()
+  const body = JSON.parse(await req.text() || "{}")
   const res = await fetch(`${AGENT_URL}/agent/checkout/complete`, {
     method: "POST",
     headers: {

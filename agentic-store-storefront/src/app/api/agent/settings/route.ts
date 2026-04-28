@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   if (!customerId) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
   }
-  const body = await req.json()
+  const body = JSON.parse(await req.text() || "{}")
   const res = await fetch(`${AGENT_URL}/agent/settings`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-customer-id": customerId, "x-customer-token": token },

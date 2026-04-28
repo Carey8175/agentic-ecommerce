@@ -15,7 +15,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { token, customerId } = await resolveCustomer()
-  const body = await req.json()
+  const body = JSON.parse(await req.text() || "{}")
   const res = await fetch(`${AGENT_URL}/agent/tickets/${id}/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-customer-id": customerId, "x-customer-token": token },

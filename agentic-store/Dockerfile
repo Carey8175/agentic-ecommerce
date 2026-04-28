@@ -10,5 +10,7 @@ FROM node:20-alpine
 WORKDIR /app
 RUN npm install -g pnpm@10
 COPY --from=builder /app .
+COPY start.sh ./start.sh
+RUN chmod +x start.sh
 EXPOSE 9001
-CMD ["pnpm", "start"]
+CMD ["sh", "start.sh"]

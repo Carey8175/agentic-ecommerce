@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const { token, customerId } = await resolveCustomer()
-  const body = await req.json()
+  const body = JSON.parse(await req.text() || "{}")
   const res = await fetch(`${AGENT_URL}/agent/tickets`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-customer-id": customerId, "x-customer-token": token },

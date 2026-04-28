@@ -46,10 +46,24 @@ export async function retrieveCart(cartId?: string, fields?: string) {
       },
       headers,
       next,
-      cache: "force-cache",
+      cache: "no-store",
     })
     .then(({ cart }: { cart: HttpTypes.StoreCart }) => cart)
-    .catch(() => null)
+    .catch(async (e) => {
+      console.error("retrieveCart error:", e?.message, e?.status)
+      // If cart has invalid promo codes, clear them and retry
+      if (e?.message?.includes("promotion") || e?.message?.includes("promo")) {
+        try {
+          const headers = { ...(await getAuthHeaders()) }
+          await sdk.store.cart.update(id, { promo_codes: [] }, {}, headers)
+          const retry = await sdk.client.fetch<HttpTypes.StoreCartResponse>(`/store/carts/${id}`, {
+            method: "GET", query: { fields }, headers, cache: "no-store",
+          })
+          return retry.cart
+        } catch { return null }
+      }
+      return null
+    })
 }
 
 export async function getOrSetCart(countryCode: string) {

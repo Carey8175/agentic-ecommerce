@@ -16,18 +16,47 @@ const AGENT_SERVICE_URL = process.env.AGENT_SERVICE_URL ?? "http://localhost:300
 
 // POST /agent/tryon-jobs — start an async try-on job, return job_id immediately
 router.post("/", async (req: Request, res: Response) => {
-  const customer_id = req.headers["x-customer-id"] as string
   const customer_token = req.headers["x-customer-token"] as string
+  let customer_id = req.headers["x-customer-id"] as string
 
-  if (!customer_id || !customer_token) {
+  console.log("[tryon-jobs] POST token:", customer_token ? "present" : "MISSING", "id:", customer_id || "MISSING")
+  if (!customer_token) {
     res.status(401).json({ message: "Unauthorized" })
     return
   }
 
-  const { product_id, context_image_url, prefer_home } = req.body
-  if (!product_id || !context_image_url) {
-    res.status(400).json({ message: "product_id and context_image_url are required" })
+  // Resolve customer_id from token if not provided
+  if (!customer_id) {
+    try {
+      const r = await fetch(`${process.env.MEDUSA_URL ?? "http://localhost:9000"}/store/customers/me`, {
+        headers: {
+          "x-publishable-api-key": process.env.MEDUSA_PUBLISHABLE_KEY ?? "",
+          Authorization: `Bearer ${customer_token}`,
+        },
+      })
+      if (!r.ok) { res.status(401).json({ message: "Unauthorized" }); return }
+      const { customer } = await r.json() as any
+      customer_id = customer.id
+    } catch { res.status(401).json({ message: "Unauthorized" }); return }
+  }
+
+  const { product_id, prefer_home } = req.body
+  let { context_image_url } = req.body
+
+  if (!product_id) {
+    res.status(400).json({ message: "product_id is required" })
     return
+  }
+
+  // Auto-resolve context image from customer profile if not provided
+  if (!context_image_url) {
+    try {
+      const { resolveContextImage } = require("../agents/tryon-subagent")
+      context_image_url = await resolveContextImage({ customer_token, prefer_home: !!prefer_home })
+    } catch (e: any) {
+      res.status(400).json({ message: e.message })
+      return
+    }
   }
 
   // Fetch product details upfront so the pending card has a thumbnail + handle

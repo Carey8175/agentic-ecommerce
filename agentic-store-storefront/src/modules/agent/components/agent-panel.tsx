@@ -99,10 +99,41 @@ export default function AgentPanel({ mode = "floating", cartId = null, initialTa
     setTimeout(poll, 5000)
   }, [])
 
+  // Direct try-on: bypass LLM, call tryon-jobs API directly
+  async function handleTryOn(productId: string, productTitle: string) {
+    addMessage({ role: "user", content: `Try on ${productTitle}` })
+    const assistantId = Math.random().toString(36).slice(2)
+    setMessages(prev => [...prev, { id: assistantId, role: "assistant", content: "Queuing your try-on…" }])
+    try {
+      const res = await fetch("/api/agent/tryon-jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product_id: productId }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message ?? "Failed to queue try-on")
+      const jobId = data.job_id
+      try {
+        const stored = localStorage.getItem("_agent_tryon_jobs")
+        const existing: string[] = stored ? JSON.parse(stored) : []
+        localStorage.setItem("_agent_tryon_jobs", JSON.stringify([...existing, jobId].slice(-10)))
+      } catch { localStorage.setItem("_agent_tryon_jobs", JSON.stringify([jobId])) }
+      setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: "Your try-on is being generated! Check the Try-On page in ~30 seconds for the result." } : m))
+      notifyTryOnDone(jobId)
+    } catch (e: any) {
+      setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: e.message ?? "Try-on failed. Please try again." } : m))
+    }
+  }
+
   const sendMessageRef = useRef(sendMessage)
   useEffect(() => {
     sendMessageRef.current = sendMessage
   }, [sendMessage])
+
+  const handleTryOnRef = useRef(handleTryOn)
+  useEffect(() => {
+    handleTryOnRef.current = handleTryOn
+  }, [handleTryOn])
 
   // On mount: hero always starts a fresh session; floating panel restores existing
   useEffect(() => {
@@ -169,7 +200,14 @@ export default function AgentPanel({ mode = "floating", cartId = null, initialTa
     const handleOpenAndSend = (e: any) => {
       setActiveTab("chat")
       if (e.detail?.message) {
-        sendMessageRef.current(e.detail.message, e.detail.hidden_context)
+        const hiddenCtx: string = e.detail.hidden_context ?? ""
+        const productIdMatch = hiddenCtx.match(/product_id:\s*(\S+)/)
+        const isTryOn = /try.?on/i.test(e.detail.message)
+        if (isTryOn && productIdMatch) {
+          handleTryOnRef.current(productIdMatch[1], e.detail.message.replace(/^try.?on\s*/i, "").trim())
+        } else {
+          sendMessageRef.current(e.detail.message, hiddenCtx)
+        }
       }
     }
 
@@ -479,7 +517,7 @@ export default function AgentPanel({ mode = "floating", cartId = null, initialTa
                           product={p}
                           isLight={isSupport}
                           onTryOn={(productId, productTitle) =>
-                            sendMessage(`Try on ${productTitle}`, `product_id: ${productId}`)
+                            handleTryOn(productId, productTitle)
                           }
                         />
                       ))}

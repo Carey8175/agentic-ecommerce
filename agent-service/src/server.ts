@@ -1,4 +1,6 @@
 import "dotenv/config"
+// Allow self-signed/untrusted certs in Docker (CA bundle may be incomplete in alpine)
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
 import express from "express"
 import cors from "cors"
 import path from "path"
@@ -19,7 +21,12 @@ import tryonJobsRoute from "./routes/tryon-jobs"
 const app = express()
 const PORT = process.env.PORT ?? 3001
 
-app.use(cors({ origin: ["http://localhost:8000", "http://localhost:3000", "http://localhost:9000", "http://localhost:9001"], credentials: true }))
+const STOREFRONT_URL = process.env.STOREFRONT_URL ?? "http://localhost:3000"
+const MEDUSA_ADMIN_URL = process.env.MEDUSA_ADMIN_URL ?? "http://localhost:9001"
+app.use(cors({
+  origin: [STOREFRONT_URL, MEDUSA_ADMIN_URL, "http://localhost:3000", "http://localhost:8000", "http://localhost:9001"],
+  credentials: true,
+}))
 app.use(express.json({ limit: "50mb" }))
 
 // Serve uploaded/generated images

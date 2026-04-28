@@ -382,6 +382,52 @@ hooks/
 
 ## Session History
 
+### 2026-04-28 (Session 9) — Docker Deployment: Images, Inventory, Pricing & Cart
+
+**Goal:** Get the fully Dockerised stack working end-to-end on BytePlus ECS (`192.168.0.122`).
+
+#### Images Fixed
+- **`next.config.js` missing `port: "9001"`** — Next.js `remotePatterns` rejected `http://medusa:9001/...` because non-standard ports must be listed explicitly. Added `port: "9001"` to the `medusa` entry.
+- **Dockerfile missing `next.config.js` at runtime** — The runtime stage only copied `.next`, `node_modules`, `package.json`, `public`. Without `next.config.js`, `next start` runs with no config and rejects all external image URLs. Fixed: added `COPY --from=builder /app/next.config.js ./` and `COPY --from=builder /app/check-env-variables.js ./` to Dockerfile runtime stage.
+
+#### Inventory Fixed
+- **All products "Out of stock"** — Medusa v2 computed `inventory_quantity` field returns 0 from the Store API even though DB has 1,000,000 stock per variant and sales channel + location links are correct. Medusa v2 bug. Fixed by disabling inventory tracking on all variants:
+  ```sql
+  UPDATE product_variant SET manage_inventory = false;
+  ```
+
+#### Pricing Fixed
+- **Add to cart fails** — `calculated_amount` was undefined because the `price` table had 0 rows (price sets existed but no actual prices). Extracted and restored pricing tables from `database_dump.sql` (2026-04-21):
+  - `price_set` (2536 rows), `price` (5088 rows), `price_rule` (16 rows), `product_variant_price_set` (2530 rows), `price_preference` (3 rows)
+  - Restored in correct FK order using `SET session_replication_role = replica` to bypass FK checks during bulk load.
+  - `region` table had schema mismatch (`tax_rate` column removed in current Medusa version) — restored region manually via `INSERT` with only current columns.
+
+#### Region Mismatch Fixed
+- **Old region ID in cookies** — After pricing restore, DB had region `reg_01KP2RP3YG1NRQMNPDRERX6SGT` (from dump) but browser cookies stored `reg_01KQ990PJ18662K1HE1TA59NPD` (from fresh install). Temporarily added orphan region row to avoid 404s, then deleted it once confirmed it had no countries — causing `getOrSetCart` to always update cart region to the correct one.
+- **`region_country` restored** — 250 country rows restored from dump, all pointing to `reg_01KP2RP3YG1NRQMNPDRERX6SGT`.
+
+#### Cart Page Fix (in progress)
+- **Cart page shows empty, dropdown shows item** — `retrieveCart` uses `.catch(() => null)` silently swallowing errors. Root cause: carts created under old region ID; when region was deleted, cart fetch returned 500.
+- **Fix applied:** Changed `cache: "force-cache"` → `cache: "no-store"` in `retrieveCart` so cart is always fresh. Added error logging to `.catch`. Deleted orphan region so stale carts trigger new cart creation with correct region.
+- **Status:** Rebuild deployed. Clear browser cookies for `192.168.0.122` and re-test.
+
+#### Files Changed This Session
+| File | Change |
+|------|--------|
+| `agentic-store-storefront/next.config.js` | Added `port: "9001"` to medusa remotePattern |
+| `agentic-store-storefront/Dockerfile` | Added runtime COPY for `next.config.js` and `check-env-variables.js` |
+| `agentic-store-storefront/src/lib/data/cart.ts` | `cache: "force-cache"` → `cache: "no-store"`; added error logging to `.catch` |
+
+#### DB Changes This Session
+| Change | SQL |
+|--------|-----|
+| Disable inventory tracking | `UPDATE product_variant SET manage_inventory = false` |
+| Restore price tables | From `database_dump.sql` via extracted `price_restore.sql` |
+| Restore region + countries | Manual INSERT + COPY from dump |
+| Delete orphan region | `DELETE FROM region WHERE id = 'reg_01KQ990PJ18662K1HE1TA59NPD'` |
+
+---
+
 ### 2026-04-27 (Session 8) — Try-On Gallery Fixes & UX Polish
 
 - **Try-on gallery slider fix** — `context_image_used` was stored as a relative `/uploads/...` path; browser on port 8000 couldn't load it from port 3001 causing the before/after slider to collapse to a strip. Fixed: `parseJob()` in `tryon-jobs.ts` now normalises both `image_url` and `context_image_used` to absolute `http://localhost:3001/...` URLs at read time. New jobs also store the absolute URL at creation.

@@ -168,7 +168,7 @@ export default function TryOnStudio({ cart }: { cart: HttpTypes.StoreCart }) {
     setIsGenerating(true)
     setResultImg(null)
     try {
-      const res = await fetch("http://localhost:3001/agent/tryon", {
+      const res = await fetch("/api/agent/tryon", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ product_id: selectedItem?.product_id, user_image_base64: uploadedImg }),

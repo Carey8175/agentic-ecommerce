@@ -7,7 +7,7 @@ export const config = defineRouteConfig({
   icon: ChatBubble,
 })
 
-const AGENT_URL = "http://localhost:3001"
+const AGENT_URL = "http://192.168.0.122"
 
 type Ticket = {
   id: string

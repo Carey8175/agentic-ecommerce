@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
   }
 
-  const body = await req.json()
+  const body = JSON.parse(await req.text() || "{}")
 
   const res = await fetch(`${BACKEND}/store/reviews`, {
     method: "POST",

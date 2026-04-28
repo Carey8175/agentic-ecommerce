@@ -138,7 +138,7 @@ const TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
     function: {
       name: "redirect_to_tryon",
       description:
-        "Switch the user to the Visual Studio tab to try on or visualise a product. Call when the user asks to see how something looks on them, in their space, or on their pet etc.",
+        "Switch the user to the Try-On Studio tab without generating an image — only use this when the user explicitly wants to open the studio manually and upload their own photo. Do NOT use this when the user asks to try on a specific product — use delegate_to_tryon_subagent instead.",
       parameters: {
         type: "object",
         properties: {
@@ -300,7 +300,6 @@ function buildSystemPrompt(config: any, customer: any): string {
 You help customers with: product search and recommendations, cart management, order tracking and returns, checkout, and general store FAQs.
 
 RULES:
-- When a user asks to see how something looks on them or in their space, call redirect_to_tryon
 - When a user wants to checkout, call prepare_checkout to show the order summary with a Place Order button
 - When returning a list of products, orders, or a cart, DO NOT summarize or list the items in text. The UI will automatically render a beautiful visual card for each product, order, or cart item. You should simply write a short introductory sentence like "Here are some great options:", "Here are your orders:", or "Here is your cart:".
 - Never place orders or add items to cart autonomously — surface UI actions for the user
@@ -648,7 +647,7 @@ export async function runChatAgent(opts: {
                 break
               }
               case "delegate_to_tryon_subagent": {
-                const baseUrl = process.env.AGENT_SERVICE_URL ?? "http://localhost:3001"
+                const baseUrl = "http://localhost:3001"
 
                 try {
                   // Check if try-on is applicable for this product before doing anything
