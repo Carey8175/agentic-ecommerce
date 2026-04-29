@@ -19,6 +19,7 @@ export async function generateTryOn(opts: {
   customerToken: string
   base_url: string
   customerId?: string
+  prefer_home?: boolean
 }) {
   const product = await medusa.getProductDetails(opts.product_id, opts.customerToken)
   const category = product?.categories?.[0]?.handle ?? "other"
@@ -30,13 +31,21 @@ export async function generateTryOn(opts: {
   const contextAbsUrl = await urlToBase64(opts.context_image_url, opts.base_url)
   const productAbsUrl = await urlToBase64(productImageUrl, opts.base_url)
 
+  // Determine upload type — use VLM detection, but override with prefer_home if set
+  const categoryInfo = await byteplus.detectVisualCategory({
+    title: product.title,
+    category,
+    description: product.description ?? "",
+  })
+  const uploadType = opts.prefer_home ? "room" : (categoryInfo.upload_type ?? "context")
+
   // Stage 1: VLM generates the Seedream prompt
   const prompt = await byteplus.generateTryOnPrompt({
     contextImageUrl: contextAbsUrl,
     productImageUrl: productAbsUrl,
     productTitle: product.title,
     category,
-    uploadType: "context",
+    uploadType,
   })
 
   // Stage 2: Seedream generates the image

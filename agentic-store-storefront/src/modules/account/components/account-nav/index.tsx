@@ -21,6 +21,13 @@ const AccountNav = ({
   const { countryCode } = useParams() as { countryCode: string }
 
   const handleLogout = async () => {
+    try {
+      // Clear all localStorage keys for this session
+      const keys = Object.keys(localStorage).filter(k =>
+        k.startsWith("_agent_tryon_jobs") || k.startsWith("_agent_session_id")
+      )
+      keys.forEach(k => localStorage.removeItem(k))
+    } catch { /* ignore */ }
     await signout(countryCode)
   }
 

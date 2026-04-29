@@ -3,6 +3,9 @@ import { createTryOnJob, completeTryOnJob, failTryOnJob, getTryOnJob, listTryOnJ
 import { generateTryOn } from "../agents/tryon-agent"
 import * as medusa from "../tools/medusa"
 
+const HOME_CATEGORIES = new Set(["home-garden", "furniture", "toys-games", "animals-pet-supplies", "cameras-optics"])
+const BLOCKED_CATEGORIES = new Set(["business-industrial", "media", "food-beverages-tobacco", "vehicles-parts", "hardware", "electronics", "software", "services", "arts-entertainment", "office-supplies"])
+
 const router = Router()
 
 // GET /agent/tryon-jobs/debug/all — debug
@@ -48,11 +51,25 @@ router.post("/", async (req: Request, res: Response) => {
     return
   }
 
+  // Check applicability and resolve prefer_home from product category
+  let prefer_home_resolved = !!prefer_home
+  try {
+    const p = await medusa.getProductDetails(product_id, customer_token).catch(() => null)
+    if (p) {
+      const categoryHandle = p.categories?.[0]?.handle ?? p.type?.value ?? ""
+      if (BLOCKED_CATEGORIES.has(categoryHandle)) {
+        res.status(400).json({ message: `Sorry, virtual try-on isn't available for "${p.title}". This product category doesn't support visual try-on.` })
+        return
+      }
+      if (HOME_CATEGORIES.has(categoryHandle)) prefer_home_resolved = true
+    }
+  } catch { /* if check fails, allow through */ }
+
   // Auto-resolve context image from customer profile if not provided
   if (!context_image_url) {
     try {
       const { resolveContextImage } = require("../agents/tryon-subagent")
-      context_image_url = await resolveContextImage({ customer_token, prefer_home: !!prefer_home })
+      context_image_url = await resolveContextImage({ customer_token, prefer_home: prefer_home_resolved })
     } catch (e: any) {
       res.status(400).json({ message: e.message })
       return
@@ -91,6 +108,7 @@ router.post("/", async (req: Request, res: Response) => {
         customerToken: customer_token,
         base_url: AGENT_SERVICE_URL,
         customerId: customer_id,
+        prefer_home: !!prefer_home,
       })
 
       // Store absolute URL for the generated image

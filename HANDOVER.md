@@ -1,5 +1,5 @@
 # Project Handover — Agentic E-Commerce Platform (Byteshop)
-**Last Updated:** 2026-04-27 (Session 8)
+**Last Updated:** 2026-04-29 (Session 13)
 
 ---
 
@@ -367,6 +367,9 @@ hooks/
 | Try-on gallery before/after slider showing as strip | `context_image_used` stored as relative `/uploads/...` path; browser on port 8000 can't load from port 3001 | Fixed — `parseJob()` in `tryon-jobs.ts` normalises all URLs to absolute `http://localhost:3001/uploads/...` at read time |
 | Try-on gallery before/after slider missing on refresh | `removeJob()` read stale `jobIds` prop, so removal didn't persist to localStorage correctly | Fixed — `removeJob()` now reads localStorage directly before writing |
 | Broken `before` image causes slider to collapse/glitch | `context_image_used` file may be cleaned up (24h expiry) but job still in localStorage | Fixed — `BeforeAfterCompare` has `onError` handler; falls back to showing just the try-on result image |
+| Try-on gallery shared across accounts | localStorage key `_agent_tryon_jobs` not scoped per user | Fixed — key is now `_agent_tryon_jobs_<cache_id>` using `_medusa_cache_id` cookie; logout clears all `_agent_` keys |
+| Furniture/home products using self photo for try-on | `isHomeProduct` was always false due to scope bug + `getProductDetails` not returning categories | Fixed — category handle lookup via `getProductFromCatalog`; `HOME_CATS` set drives `prefer_home`; no fallback to self photo when home photo missing |
+| Non-applicable categories (food, vehicles, etc.) could queue try-ons | No blocking in `tryon-jobs` route (direct button path bypassed chat-agent) | Fixed — `BLOCKED_CATEGORIES` set checked in both `chat-agent.ts` and `tryon-jobs.ts` route |
 
 ---
 
@@ -381,6 +384,143 @@ hooks/
 ---
 
 ## Session History
+
+### 2026-04-29 (Session 13) — Logout Clear & Account Isolation
+
+**Goal:** On logout, clear all try-on and chat session data from localStorage so switching accounts doesn't leak data between users.
+
+#### What Was Done This Session
+
+**localStorage clear on logout:**
+- Added `handleLogout` in `account-nav/index.tsx` that clears all `_agent_tryon_jobs*` and `_agent_session_id*` keys from localStorage before calling `signout()`
+- Applied the same fix directly to the compiled ECS chunk `/app/.next/static/chunks/app/[countryCode]/(main)/account/layout-64dca70b7dd1fd79.js` — found the minified `onClick:i,"data-testid":"logout-button"` pattern in both mobile and desktop logout buttons and wrapped `i()` with a pre-call localStorage clear of all `_agent_` prefixed keys
+- `docker cp` back to `byteshop-storefront-1` + `docker restart byteshop-storefront-1`
+
+**Account-scoped localStorage key (try-on gallery):**
+- Gallery localStorage key changed from `_agent_tryon_jobs` to `_agent_tryon_jobs_<cache_id>` where `<cache_id>` is derived from the readable `_medusa_cache_id` cookie (not the HttpOnly JWT)
+- `getTryOnKey()` helper reads `_medusa_cache_id` from `document.cookie` and appends first 8 chars as suffix; falls back to `_agent_tryon_jobs_guest` for unauthenticated users
+- Applied in source (`try-on-page-client.tsx`, `tryon-gallery.tsx`) and directly to ECS compiled chunks (`1728-*.js`, `try-on/page-*.js`)
+- Old unscoped `_agent_tryon_jobs` key is cleaned up on gallery load
+
+#### ECS Files Directly Edited (this session)
+| Container | File | Change |
+|-----------|------|--------|
+| `byteshop-storefront-1` | `/app/.next/static/chunks/app/[countryCode]/(main)/account/layout-64dca70b7dd1fd79.js` | Logout buttons (mobile + desktop) now clear all `_agent_` localStorage keys before signing out |
+
+#### Source Files Changed (this session)
+| File | Change |
+|------|--------|
+| `agentic-store-storefront/src/modules/account/components/account-nav/index.tsx` | `handleLogout` clears `_agent_tryon_jobs*` and `_agent_session_id*` from localStorage before signout |
+
+---
+
+### 2026-04-29 (Session 12) — Try-On: Furniture Space Photo & Category Blocking
+
+**Goal:** Fix furniture try-on to use room/space photo instead of self photo, and block non-applicable product categories.
+
+#### What Was Done This Session
+
+**Root cause of furniture using self photo:**
+- `detectVisualCategory` VLM was returning `upload_type` correctly but it was scoped inside `if (product)` block, making `isHomeProduct` always false
+- `getProductDetails` doesn't return categories by default — fixed by using `getProductFromCatalog` which uses the catalog cache with `*categories`
+- `tryon-subagent.ts` was falling back to `self_url` when `home_url` missing — fixed to throw error instead
+
+**Category-based applicability (replaces VLM detection):**
+- Replaced slow/unreliable VLM applicability check with deterministic category handle lookup
+- **Blocked:** `business-industrial`, `media`, `food-beverages-tobacco`, `vehicles-parts`, `hardware`, `electronics`, `software`, `services`, `arts-entertainment`, `office-supplies`
+- **Home/space photo:** `home-garden`, `furniture`, `toys-games`, `animals-pet-supplies`, `cameras-optics`
+- **Self photo:** all other allowed categories (apparel, sporting-goods, luggage-bags, health-beauty, baby-toddler)
+- Applied in both `chat-agent` (LLM path) and `tryon-jobs` route (direct button path)
+
+**Try-On gallery scoped per account:**
+- localStorage key changed from `_agent_tryon_jobs` to `_agent_tryon_jobs_<jwt_token_prefix>` per user
+- Prevents logged-out/switched accounts from seeing another user's gallery
+- Applied via direct JS edits to compiled Next.js chunks on ECS
+
+**Docker build cache bug (ongoing):**
+- TypeScript source changes not making it into compiled Docker image despite `--no-cache`
+- Workaround: copy files out of container → edit on host → `docker cp` back + `docker restart`
+- Root cause still unknown — likely Docker BuildKit layer cache on registry side
+
+#### ECS Files Directly Edited (not via Docker image)
+| Container | File | Change |
+|-----------|------|--------|
+| `byteshop-agent-1` | `/app/dist/agents/chat-agent.js` | Category-based blocking + `isHomeProduct` detection |
+| `byteshop-agent-1` | `/app/dist/agents/tryon-subagent.js` | No fallback to self_url when prefer_home=true |
+| `byteshop-agent-1` | `/app/dist/agents/tryon-agent.js` | `uploadType` from `prefer_home` flag |
+| `byteshop-agent-1` | `/app/dist/routes/tryon-jobs.js` | Category blocking + `getProductFromCatalog` for category detection |
+| `byteshop-storefront-1` | `/app/.next/static/chunks/1728-*.js` | Scoped localStorage key per JWT token |
+| `byteshop-storefront-1` | `/app/.next/static/chunks/app/.../try-on/page-*.js` | Scoped localStorage key per JWT token |
+
+#### Source Files Changed (not yet reflected in Docker image)
+| File | Change |
+|------|--------|
+| `agent-service/src/agents/chat-agent.ts` | Category-based blocking replaces VLM detection |
+| `agent-service/src/agents/tryon-subagent.ts` | Throw error if home photo missing when prefer_home=true |
+| `agent-service/src/agents/tryon-agent.ts` | Pass `prefer_home` → dynamic `uploadType` |
+| `agent-service/src/routes/tryon-jobs.ts` | Category blocking + auto prefer_home from category |
+| `agentic-store-storefront/src/modules/try-on/templates/try-on-page-client.tsx` | JWT-scoped localStorage key |
+| `agentic-store-storefront/src/modules/try-on/templates/tryon-gallery.tsx` | Accept `storageKey` prop |
+
+---
+
+### 2026-04-28 (Session 10) — ECS Deployment: Image Upload Transfer & Nginx Proxy
+
+**Goal:** Get product images loading on the live storefront at `http://69.5.8.150`.
+
+#### Current Blocker — Images 404
+- All product images return 404. Root cause: the `byteshop_medusa_uploads` Docker volume on ECS is **empty** — image files were never transferred from the local machine.
+- DB image URLs were updated to `http://69.5.8.150/medusa-uploads/hf_xxx.jpg` pointing to an nginx proxy route.
+- nginx.conf has `/medusa-uploads/` → `http://medusa/.medusa/server/.uploads/` proxy (correct location confirmed via `docker inspect`).
+- Volume mount: `byteshop_medusa_uploads` → `/app/.medusa/server/.uploads` inside the medusa container.
+
+#### What Was Done This Session
+- Restored all SQL data: 523 products, 528 images, 2536 prices, 250 regions, shipping.
+- Fixed CRLF line endings on all `.sql` files (`dos2unix` + trailing newline).
+- Updated DB image URLs from `192.168.0.122:9001/uploads/` → `69.5.8.150/medusa-uploads/`.
+- Added nginx `/medusa-uploads/` proxy location block.
+- Reset admin password: `hiewweifeng@gmail.com` / `Admin123!`
+- Admin accessible at `http://69.5.8.150/app` (nginx proxy at port 80, since hairpin NAT blocks port 9001).
+- Fixed reviews API timeout (was fetching via public EIP server-side → ConnectTimeoutError; now uses internal `http://medusa:9001`).
+- Fixed support tickets AGENT_URL: changed from `192.168.0.56` → `69.5.8.150` in admin page.
+
+#### Next Step — Transfer Uploads Volume
+Need to copy the local Docker uploads volume to ECS. The local volume has all product images. Steps:
+1. On local machine: `docker volume ls | findstr upload` to find the volume name
+2. Export: `docker run --rm -v <volume>:/data -v C:\Users\Admin\AppData\Local\Temp:/backup alpine tar czf /backup/uploads.tar.gz -C /data .`
+3. Upload tar to ECS (via BytePlus object storage or other method — no direct SCP access)
+4. On ECS: extract into `/var/lib/docker/volumes/byteshop_medusa_uploads/_data/`
+5. Verify: `ls /var/lib/docker/volumes/byteshop_medusa_uploads/_data | head -5`
+
+#### Nginx Config on ECS (`/opt/byteshop/nginx.conf`)
+```nginx
+location /medusa-uploads/ {
+    proxy_pass http://medusa/.medusa/server/.uploads/;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+}
+```
+> Note: verify proxy_pass path points to the correct mount destination `/app/.medusa/server/.uploads/`
+
+#### Hairpin NAT Note
+ECS containers **cannot reach the server's own EIP (69.5.8.150)**. Always use internal Docker hostnames (`http://medusa:9001`, `http://agent:3001`) for server-side fetches. Only use the EIP for browser-facing (public) URLs.
+
+#### Files Changed This Session
+| File | Change |
+|------|--------|
+| `agentic-store/.env.production` | Added `69.5.8.150` to all CORS settings |
+| `agentic-store-storefront/.env.production` | Set `NEXT_PUBLIC_MEDUSA_BACKEND_URL` to EIP, `MEDUSA_BACKEND_URL` to internal |
+| `agentic-store-storefront/next.config.js` | Added `69.5.8.150` and `192.168.0.122` to remotePatterns |
+| `agentic-store-storefront/src/app/api/reviews/route.ts` | Fixed to use `MEDUSA_BACKEND_URL` (internal) for server-side fetch |
+| `agentic-store/src/admin/routes/support-tickets/page.tsx` | Changed `AGENT_URL` from `192.168.0.56` → `69.5.8.150` |
+
+#### DB Changes This Session
+| Change | SQL |
+|--------|-----|
+| Update image URLs | `UPDATE image SET url = replace(url, '192.168.0.122:9001/uploads/', '69.5.8.150/medusa-uploads/')` |
+| Update thumbnail URLs | `UPDATE product SET thumbnail = replace(thumbnail, '...', '...')` |
+
+---
 
 ### 2026-04-28 (Session 9) — Docker Deployment: Images, Inventory, Pricing & Cart
 

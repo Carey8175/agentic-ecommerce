@@ -8,15 +8,19 @@ export default function TryOnPageClient({ cart }: { cart: any | null }) {
   const [jobIds, setJobIds] = useState<string[]>([])
   const [showStudio, setShowStudio] = useState(false)
   const [checked, setChecked] = useState(false)
+  const [storageKey, setStorageKey] = useState("_agent_tryon_jobs_guest")
 
   useEffect(() => {
+    // Use JWT token as customer-scoped key — unique per logged-in user, "guest" for anonymous
+    const jwt = document.cookie.split(";").map(c => c.trim()).find(c => c.startsWith("_medusa_jwt="))
+    const token = jwt ? jwt.split("=")[1]?.slice(0, 16) : null
+    const key = token ? `_agent_tryon_jobs_${token}` : "_agent_tryon_jobs_guest"
+    setStorageKey(key)
     try {
-      const stored = localStorage.getItem("_agent_tryon_jobs")
+      const stored = localStorage.getItem(key)
       if (stored) {
         const parsed = JSON.parse(stored) as string[]
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setJobIds(parsed)
-        }
+        if (Array.isArray(parsed) && parsed.length > 0) setJobIds(parsed)
       }
     } catch { /* ignore */ }
     setChecked(true)
@@ -34,8 +38,9 @@ export default function TryOnPageClient({ cart }: { cart: any | null }) {
     return (
       <TryOnGallery
         jobIds={jobIds}
+        storageKey={storageKey}
         onSwitchToStudio={() => {
-          localStorage.removeItem("_agent_tryon_jobs")
+          localStorage.removeItem(storageKey)
           setJobIds([])
           setShowStudio(true)
         }}

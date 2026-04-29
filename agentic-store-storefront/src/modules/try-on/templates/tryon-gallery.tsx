@@ -196,25 +196,24 @@ function JobCard({ job, onRemove }: { job: TryOnJob; onRemove: () => void }) {
 
 const POLL_TIMEOUT_MS = 4 * 60_000 // mark stuck after 4 minutes (roughly 4 polls at 60s each)
 
-export default function TryOnGallery({ jobIds, onSwitchToStudio }: { jobIds: string[]; onSwitchToStudio: () => void }) {
+export default function TryOnGallery({ jobIds, onSwitchToStudio, storageKey = "_agent_tryon_jobs_guest" }: { jobIds: string[]; onSwitchToStudio: () => void; storageKey?: string }) {
   const [jobs, setJobs] = useState<TryOnJob[]>([])
   const pendingSince = useRef<Record<string, number>>({})
 
   function clearAll() {
-    localStorage.removeItem("_agent_tryon_jobs")
+    localStorage.removeItem(storageKey)
     onSwitchToStudio()
   }
 
   function removeJob(id: string) {
-    // Read current state from localStorage directly to avoid stale prop
     let current: string[] = []
-    try { current = JSON.parse(localStorage.getItem("_agent_tryon_jobs") ?? "[]") } catch {}
+    try { current = JSON.parse(localStorage.getItem(storageKey) ?? "[]") } catch {}
     const remaining = current.filter(j => j !== id)
     if (remaining.length === 0) {
-      localStorage.removeItem("_agent_tryon_jobs")
+      localStorage.removeItem(storageKey)
       onSwitchToStudio()
     } else {
-      localStorage.setItem("_agent_tryon_jobs", JSON.stringify(remaining))
+      localStorage.setItem(storageKey, JSON.stringify(remaining))
       setJobs(prev => prev.filter(j => j.id !== id))
     }
   }

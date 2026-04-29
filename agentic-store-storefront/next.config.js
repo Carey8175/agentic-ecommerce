@@ -37,6 +37,14 @@ const nextConfig = {
       },
       {
         protocol: "http",
+        hostname: "192.168.0.122",
+      },
+      {
+        protocol: "http",
+        hostname: "69.5.8.150",
+      },
+      {
+        protocol: "http",
         hostname: "medusa",
         port: "9001",
       },

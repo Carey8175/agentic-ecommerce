@@ -6,7 +6,7 @@ import { getSettings } from "../db/settings"
 import { createTicket } from "../db/tickets"
 import { runRecommendationAgent } from "./recommendation-agent"
 import { resolveContextImage } from "./tryon-subagent"
-import { detectVisualCategory } from "../tools/byteplus"
+
 
 const byteplus = new OpenAI({
   baseURL: process.env.BYTEPLUS_BASE_URL ?? "https://ark.ap-southeast.bytepluses.com/api/v3",
@@ -318,7 +318,7 @@ RULES:
 - When a user asks about discounts, deals, promo codes, or sales, call get_promotions. Do NOT list or describe the codes in text — the UI renders a card automatically. Just say "Here are our active promotions:" if there are any, or "There are no active promotions right now." if empty.
 - Never invent ticket IDs, promo codes, or order statuses — only use data returned by tools.
 - When a user asks for personalized recommendations, discovery, or similar/alternative products, call delegate_to_recommendation_agent. Pass the user's message and optionally the product_handle if they want alternatives to a specific product.
-- When a user wants to see a product on themselves or in their home/room, call delegate_to_tryon_subagent with the product_id. The subagent will use the customer's saved profile photos automatically. Set prefer_home=true if they mention room/home/space.
+- When a user wants to see a product on themselves or in their home/room, call delegate_to_tryon_subagent with the product_id. The subagent will use the customer's saved profile photos automatically. Set prefer_home=true if they mention room/home/space OR if the product is furniture, home decor, or any non-wearable item (e.g. chairs, tables, lamps, rugs, sofas).
 - After delegate_to_recommendation_agent returns, relay its text response to the user. Do NOT add your own product list — the subagent's products are already rendered.
 - After delegate_to_tryon_subagent returns: if the result contains a "user_error" field, relay that exact message to the user verbatim — do NOT rephrase it or blame a service issue. If the result contains a "job_id", tell the user the try-on is being generated and they can check the Try-On page for results — it usually takes about 30 seconds.
 
@@ -648,27 +648,24 @@ export async function runChatAgent(opts: {
               }
               case "delegate_to_tryon_subagent": {
                 const baseUrl = "http://localhost:3001"
+                const BLOCKED = new Set(["business-industrial", "media", "food-beverages-tobacco", "vehicles-parts", "hardware", "electronics", "software", "services", "arts-entertainment", "office-supplies"])
+                const HOME_CATS = new Set(["home-garden", "furniture", "toys-games", "animals-pet-supplies", "cameras-optics"])
 
                 try {
-                  // Check if try-on is applicable for this product before doing anything
                   const product = await medusa.getProductDetails(input.product_id, customer_token).catch(() => null)
+                  let isHomeProduct = input.prefer_home === true
                   if (product) {
-                    const categoryInfo = await detectVisualCategory({
-                      title: product.title,
-                      category: product.categories?.[0]?.handle ?? product.type?.value,
-                      description: product.description ?? "",
-                    })
-                    if (!categoryInfo.is_tryon_applicable) {
-                      const reason = categoryInfo.not_applicable_reason || "This product type isn't suitable for visual try-on."
-                      result = { user_error: `Sorry, virtual try-on isn't available for **${product.title}**. ${reason}` }
+                    const categoryHandle = product.categories?.[0]?.handle ?? product.type?.value ?? ""
+                    if (BLOCKED.has(categoryHandle)) {
+                      result = { user_error: `Sorry, virtual try-on isn't available for **${product.title}**. This product category doesn't support visual try-on.` }
                       break
                     }
+                    if (HOME_CATS.has(categoryHandle)) isHomeProduct = true
                   }
-
                   const contextImageUrl = await resolveContextImage({
                     context_image_url: input.context_image_url,
                     customer_token,
-                    prefer_home: input.prefer_home ?? false,
+                    prefer_home: isHomeProduct,
                   })
 
                   const jobRes = await fetch(`${baseUrl}/agent/tryon-jobs`, {
@@ -681,7 +678,7 @@ export async function runChatAgent(opts: {
                     body: JSON.stringify({
                       product_id: input.product_id,
                       context_image_url: contextImageUrl,
-                      prefer_home: input.prefer_home ?? false,
+                      prefer_home: isHomeProduct,
                     }),
                   })
                   if (!jobRes.ok) {

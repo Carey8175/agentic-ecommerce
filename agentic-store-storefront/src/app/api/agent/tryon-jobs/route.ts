@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
 import { cookies } from "next/headers"
+import { resolveCustomer } from "../_resolve-customer"
 
 const AGENT_URL = process.env.AGENT_SERVICE_URL ?? "http://localhost:3001"
 
 async function authHeaders() {
   const cookieStore = await cookies()
+  const token = cookieStore.get("_medusa_jwt")?.value ?? ""
+  const { customerId } = await resolveCustomer()
   return {
-    "x-customer-token": cookieStore.get("_medusa_jwt")?.value ?? "",
-    "x-customer-id": cookieStore.get("_medusa_customer_id")?.value ?? "",
+    "x-customer-token": token,
+    "x-customer-id": customerId,
   }
 }
 
